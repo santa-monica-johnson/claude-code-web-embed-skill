@@ -6,7 +6,8 @@ WebSocket 経由で Web UI の xterm.js ターミナルへ中継する。
 Node 版と同一のプロトコル・挙動。開発者向けコメントは日本語、
 利用者が目にする文言は英語で統一する。
 
-必要: Python 3.8+ / websockets (requirements.txt)
+必要: Python 3.11+ 推奨（`websockets` 自体の最低要件は 3.10+）/ websockets (requirements.txt)
+Unix 系専用（stdlib の `pty` を使用）。Windows では Node 版を使うこと。
 """
 
 import asyncio

@@ -59,5 +59,8 @@ pip install -r requirements.txt
 ## Static hosting (e.g. GitHub Pages)
 
 The frontend assets (`claude-terminal.*`, `embed.js`) work as-is on static hosting.
-The Local Agent runs locally on the user's machine. Add the deploy origin to
-`CLAUDE_AGENT_ALLOWED_ORIGINS`.
+The Local Agent runs locally on the visitor's own machine — add the deploy origin
+to `CLAUDE_AGENT_ALLOWED_ORIGINS` (mandatory). This is not an unconditional
+guarantee: some browsers gate a public HTTPS page's access to `localhost` behind
+a Local Network Access permission prompt. State this to the user as conditional
+on their browser, not as flatly "supported" (`references/security.md`).

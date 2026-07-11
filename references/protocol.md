@@ -174,3 +174,40 @@ Checklist for a new implementation:
 **Distribution note**: Go and Rust compile to a single static binary, which
 avoids native-build friction such as node-pty's `spawn-helper` execute-bit issue
 on macOS. They are the strongest choices when you want a drop-in binary.
+
+## Manual verification checklist
+
+There is no automated CI for this project yet. Before calling an implementation
+(new or modified) "working", exercise at least the following manually — e.g.
+with a small WebSocket test script and `curl`, using a harmless command like
+`cat` or `bash` in place of `claude` where you just need to observe PTY I/O
+rather than a real Claude Code session:
+
+- [ ] Agent starts and prints the banner (host, port, working dir, Claude
+      availability, session token).
+- [ ] `GET /health` returns `200` with the documented JSON shape.
+- [ ] `GET /terminal` upgrade with a missing/wrong token is rejected `401`.
+- [ ] `GET /terminal` upgrade with a disallowed Origin is rejected `403`.
+- [ ] A valid connection reaches `status: connected`, a real PTY starts, and
+      input/output round-trips correctly (including multibyte UTF-8 across
+      chunk boundaries).
+- [ ] A `resize` message is accepted and reflected in the PTY's window size.
+- [ ] The child process exits cleanly and the agent reports it (`exit` message,
+      `activeSessions` count drops).
+- [ ] **Session persistence**: disconnect and reconnect with the same `session`
+      id before the grace period elapses — same PID, `resumed: true`, buffered
+      output is replayed, and new input/output continues to work.
+- [ ] **Grace expiry**: reconnect with the same `session` id *after* the grace
+      period elapses — a *different* PID (fresh process), not a hang or crash.
+- [ ] **Takeover**: connect twice with the same `session` id while the first is
+      still open — the first receives `status: replaced` and closes; the second
+      keeps working correctly even after the (would-be) grace period has passed
+      (this specific check catches a real race found during development — see
+      `server.js`'s `cleanup()` comment and `agent.py`'s `PtySession.attach()`
+      comment for what can go wrong here in each language).
+- [ ] Agent shutdown (SIGINT/SIGTERM) terminates all live PTYs immediately,
+      including ones mid-grace-period.
+
+Record what you actually ran (OS, language, command used in place of `claude`)
+wherever "verified working" is claimed in documentation — don't claim coverage
+of an OS or language combination you haven't actually run.

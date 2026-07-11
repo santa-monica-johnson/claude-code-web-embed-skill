@@ -36,10 +36,12 @@ A design reference for developers. It summarizes the structure, communication fl
 
 ### Local Agent (local-agent/)
 
-The agent is **implementation-selectable**: `node/` (Node 18+) and `python/`
-(Python 3.8+) ship ready-made, and any language can be added by implementing the
-language-neutral protocol (see the skill's `references/protocol.md`). All
-implementations behave identically. Every implementation provides:
+The agent is **implementation-selectable**: `node/` (Node 22+; macOS/Linux/Windows)
+and `python/` (Python 3.11+ recommended; macOS/Linux/Unix-like only — no Windows,
+since it relies on the stdlib `pty` module) ship ready-made, and any language can
+be added by implementing the language-neutral protocol (see the skill's
+`references/protocol.md`). All implementations behave identically. Every
+implementation provides:
 
 - **Entry / server**: HTTP (`/health`, `/status`) + WebSocket (`/terminal`); creates a PTY session per connection.
 - **PTY management**: create, I/O, resize, and terminate the PTY.

@@ -1,6 +1,6 @@
 ---
 name: claude-code-web-embed
-description: Integrate a locally running Claude Code into an existing web interface. The Claude Code CLI is not reimplemented — the copy installed on the user's machine is bridged to an xterm.js terminal in the web UI through a Local Agent (WebSocket + PTY). Use when the user wants to "embed a Claude Code terminal in a web app", "integrate Claude Code into a site", "run Claude Code from the browser", or "generate a Local Agent and embedded terminal". The Local Agent language is selectable up front (Node.js or Python ship ready-made; any language can be added via the protocol). Works with React/Next/Vue/Nuxt/Svelte/Astro/Vite/Vanilla and static hosting such as GitHub Pages. The iframe approach is the default.
+description: Integrate a locally running Claude Code into an existing web interface. The Claude Code CLI is not reimplemented — the copy installed on the user's machine is bridged to a terminal frontend (xterm.js, inside an iframe or framework wrapper) in the web UI through a Local Agent (WebSocket + PTY). Use when the user wants to "embed a Claude Code terminal in a web app", "integrate Claude Code into a site", "run Claude Code from the browser", or "generate a Local Agent and embedded terminal". The Local Agent language is selectable up front (Node.js 22+ or Python 3.11+ ship ready-made; any language can be added via the protocol). Works with React/Next/Vue/Nuxt/Svelte/Astro/Vite/Vanilla, and can be deployed on static hosting (e.g. GitHub Pages) subject to the visitor's browser and their own local Local Agent. The iframe approach is the default.
 ---
 
 # claude-code-web-embed (embed Claude Code into an existing web app)
@@ -8,18 +8,20 @@ description: Integrate a locally running Claude Code into an existing web interf
 **Embed the locally installed Claude Code CLI into an existing web UI.** Claude Code is neither modified nor reimplemented — the machine's `claude` is launched on a PTY and relayed over WebSocket to an xterm.js terminal.
 
 ```
-Existing web UI (xterm.js terminal / iframe)
-        │ WebSocket  (language-neutral JSON protocol)
-        ▼
+Existing web UI
+  └─ iframe or framework wrapper
+       └─ Terminal Frontend (xterm.js)
+              │ WebSocket  (language-neutral JSON protocol)
+              ▼
 Local Agent (WebSocket + PTY + security)   ← this skill scaffolds it; language is selectable
-        │
-        ▼
+              │
+              ▼
 Claude Code CLI (existing, as-is)
 ```
 
 ## What this skill produces
 
-- **Local Agent** (`assets/local-agent/`): pick one implementation — **`node/`** (Node 18+) or **`python/`** (Python 3.8+). Both speak the same protocol (`references/protocol.md`). Any other language (Go, Rust, …) can be added via the porting guide.
+- **Local Agent** (`assets/local-agent/`): pick one implementation — **`node/`** (Node 22+; also the only option on Windows) or **`python/`** (Python 3.11+; Unix/macOS/Linux only — its stdlib `pty` module doesn't exist on Windows). Both speak the same protocol (`references/protocol.md`). Any other language (Go, Rust, …) can be added via the porting guide.
 - **Frontend** (`assets/frontend/`): xterm.js terminal (iframe), embed script, connection-status UI, plus React/Vue wrappers. Shared across all agent languages.
 - **Docs** (`assets/docs-templates/`): README / architecture / setup for the target project.
 
@@ -57,7 +59,7 @@ Wire the embed into the existing UI in one place (for the iframe default: load `
 - **The agent language is a choice, not a given.** Node and Python are ready; the protocol makes any language a drop-in. Keep the frontend identical across languages.
 - **Do not disrupt the existing app.** Integrate with minimal change via the iframe approach.
 - **Security is mandatory.** Loopback-only bind, Origin allowlist, session token, working-directory scope. No public arbitrary-shell API (`references/security.md`).
-- **Nothing goes to the cloud.** Neither Claude Code nor local files are sent externally. Even with a statically hosted frontend, all communication is handled solely by the Local Agent.
+- **No cloud relay of our own.** The web UI ↔ Local Agent bridge stays on the user's machine; this skill doesn't proxy terminal traffic, repo contents, or credentials through any cloud service it operates. Claude Code itself still talks to whatever model provider it's configured to use (normally Anthropic) as part of its ordinary operation — that's expected and outside this skill's scope, not something to hide or contradict in generated docs.
 
 ## Completion criteria
 
@@ -69,8 +71,8 @@ After generating/integrating, confirm:
 - Resize is reflected in the terminal.
 - It auto-reconnects when the Local Agent restarts.
 - Reloading the page (or a brief network drop) reattaches to the same running Claude Code session (via the `session` id in `sessionStorage`) instead of restarting it, within the configured grace period.
-- All communication goes through the Local Agent (no cloud transfer).
-- The frontend works even on static hosting (e.g. GitHub Pages).
+- The web UI ↔ Local Agent bridge goes through no cloud relay of this project's own (Claude Code's own traffic to its configured model provider is separate and expected).
+- If the frontend is statically hosted (e.g. GitHub Pages), it still works for a visitor who has their own Local Agent running locally, subject to the browser's Origin/local-network permission behavior — see `references/security.md`.
 - The existing app's structure is not significantly changed.
 
 > Verify via the Local Agent's `/health` and the manual steps in `assets/docs-templates/setup.md`. Do not auto-launch a browser to check UI changes.

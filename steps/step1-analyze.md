@@ -16,10 +16,10 @@ Inspect the target project and decide the **embedding method**, the **Local Agen
 
 - **Embedding method**: default is **iframe** (framework-agnostic, least invasive). Use the React/Vue wrapper only when tight framework integration is explicitly wanted.
 - **Local Agent language**: **first-class, up-front choice.**
-  - `node` — Node 18+. Familiar to web devs; uses `ws` + `node-pty` (native build).
-  - `python` — Python 3.8+. Stdlib `pty` + `websockets`; no native build.
+  - `node` — Node 22+. Familiar to web devs; uses `ws` + `node-pty` (native build). Works on macOS, Linux, and Windows.
+  - `python` — Python 3.11+ recommended. Stdlib `pty` + `websockets`; no native build. **macOS/Linux/Unix-like only** — not usable on Windows (no stdlib `pty`).
   - a **new language** (Go, Rust, Ruby, …) — implement `references/protocol.md` under `assets/local-agent/<lang>/`. Go/Rust give a single static binary and avoid native-build friction.
-  - If the user has no preference: Node if the project is already Node-based; Python if they want to avoid native builds; suggest Go when a distributable single binary matters.
+  - If the user has no preference: Node if the project is already Node-based or the target OS includes Windows; Python if they're on macOS/Linux and want to avoid native builds; suggest Go when a distributable single binary matters. Never default to Python if Windows support is needed — it will not run there.
 - **Frontend placement**: a static-serve path (e.g. `public/claude-embed/`).
 - **Local Agent placement**: `local-agent/` under the project (or anywhere outside it).
 - **Port / origin**: default port `4820`. Whether to allowlist the Web UI origin (`http://localhost:5173`, `https://<user>.github.io`, …).

@@ -3,19 +3,25 @@
 A Claude Code skill that **embeds a locally running Claude Code into an existing web interface**. The Claude Code CLI is neither modified nor reimplemented — the copy already installed on your machine is bridged to an xterm.js terminal in your web UI through a **Local Agent (WebSocket + PTY)**.
 
 ```
-Existing Web UI (xterm.js / iframe)
-        │ WebSocket (language-neutral JSON protocol)
-        ▼
+Existing Web UI
+  └─ iframe or framework wrapper
+       └─ Terminal Frontend (xterm.js)
+              │ WebSocket (language-neutral JSON protocol)
+              ▼
 Local Agent (WebSocket + PTY + security)   ← implementation is selectable
-        │
-        ▼
+              │
+              ▼
 Claude Code CLI (existing, as-is)
 ```
 
 The frontend and the Local Agent talk over a small, language-neutral protocol
 ([`references/protocol.md`](references/protocol.md)), so **the agent can be written
-in any language**. Node.js and Python implementations ship ready-made and are
-verified working; Go/Rust/Ruby/… can be added via the porting guide.
+in any language**. Ready-made Node.js and Python implementations are included;
+Go/Rust/Ruby/… can be added via the porting guide. Both have been manually
+exercised end-to-end (health check, auth rejection, PTY round-trip, session
+reattachment) on macOS during development — see
+[`references/protocol.md`](references/protocol.md#manual-verification-checklist)
+for the checklist; there is no CI yet.
 
 Two things make it feel like a persistent tool rather than a page widget:
 
@@ -77,16 +83,30 @@ The skill runs through Steps 1–3 and places/integrates `assets/` into the targ
 
 After placement, see `assets/docs-templates/` (README / setup / architecture), which is copied into the target project. In short:
 
-- Requires a logged-in `claude` CLI, plus the runtime for your chosen agent (Node.js 18+ **or** Python 3.8+).
+- Requires a logged-in `claude` CLI, plus the runtime for your chosen agent: **Node.js 22+** or **Python 3.11+** (the `websockets` dependency itself only requires 3.10+, but 3.10 reaches end-of-life in October 2026 — 3.11+ gives more runway). Windows users should pick the Node implementation; the Python agent uses the Unix-only stdlib `pty` module.
 - Node: in `local-agent/node/`, run `npm install && npm start`. Python: in `local-agent/python/`, `pip install -r requirements.txt && python3 agent.py`. Copy the session token from the startup log into the frontend.
-- The iframe approach is the default. Works with React / Next / Vue / Nuxt / Svelte / Astro / Vite / Vanilla, and with static hosting such as GitHub Pages.
+- The iframe approach is the default. Works with React / Next / Vue / Nuxt / Svelte / Astro / Vite / Vanilla. Statically hosted frontends (e.g. GitHub Pages) are supported too, subject to the browser permitting the page to reach the visitor's own `localhost` Local Agent (see "Security" below).
 
 ## Security
 
-Loopback-only binding, Origin allowlisting, a session token, working-directory scoping, and child-process management are all mandatory, and no public arbitrary-shell-execution API is exposed. Neither Claude Code nor local files are ever sent to the cloud. See `references/security.md` for details.
+Loopback-only binding, Origin allowlisting, a session token, working-directory scoping, and child-process management are all mandatory; no public arbitrary-shell-execution API is exposed. See `references/security.md` for details.
+
+The bridge between the web UI and the Local Agent stays on the user's own
+machine — this project doesn't proxy terminal traffic, repository contents, or
+credentials through any cloud service of its own. **Claude Code itself does
+communicate with whatever model provider it's configured to use** (normally
+Anthropic), sending prompts and code context as part of its ordinary operation;
+that data handling is governed by the provider and by the user's own Claude
+Code account/organization settings, independent of this skill.
+
+Because the Local Agent only listens on loopback, embedding this on a publicly
+hosted page does not expose *your* Claude Code to site visitors — it only
+works for whoever has their own Local Agent running on their own machine, with
+the matching token.
 
 ## Supported environments
 
-- **Frontend**: React / Next.js / Vue / Nuxt / Svelte / Astro / Vite / Vanilla JS
-- **Backend**: Any (only the frontend and the Local Agent are integrated)
-- **Hosting**: The frontend runs even on static hosting (e.g. GitHub Pages). All communication with Claude is handled solely by the local Local Agent.
+- **Frontend**: React / Next.js / Vue / Nuxt / Svelte / Astro / Vite / Vanilla JS.
+- **Backend**: Any (only the frontend and the Local Agent are integrated).
+- **Local Agent OS support**: Node implementation — macOS, Linux, Windows 10 1809+ (via `node-pty`/ConPTY). Python implementation — macOS, Linux, and other Unix-like systems only (uses the stdlib `pty` module, which doesn't exist on Windows).
+- **Hosting**: The frontend can be statically hosted (e.g. GitHub Pages) as long as the visitor's browser is willing to let that page connect to their local Local Agent. Depending on the browser, this may involve a same-origin/Origin-allowlist check (mandatory, see `references/security.md`) and, on browsers that implement Local Network Access / Private Network Access restrictions, an explicit permission prompt for a public page reaching into `localhost`. Local development (frontend and agent both on `localhost`) is unaffected by any of this.

@@ -35,11 +35,36 @@ not be removed — regardless of the implementation language.
    - Provide only "launch Claude Code on a PTY and relay".
    - Never add a general command-execution endpoint.
 
+## Statically hosted frontends (e.g. GitHub Pages)
+
+The frontend files work as-is on static hosting — nothing about them requires
+a server. What actually determines whether a *visitor's* browser can reach
+their own Local Agent from a page served over HTTPS on a public domain is
+outside this project's control:
+
+- **Origin allowlist** (above) still applies and is mandatory regardless of hosting.
+- Modern browsers are rolling out **Local Network Access / Private Network Access**
+  restrictions that gate a public page's ability to reach `localhost`/private
+  IP space behind an explicit user permission prompt. Depending on the
+  visitor's browser and its version, connecting to the Local Agent from a
+  publicly hosted page may prompt for this permission, or may not work until
+  it's granted.
+- `ws://` (non-encrypted WebSocket) to `127.0.0.1`/`localhost` from an
+  `https://` page is generally not blocked as mixed content, since loopback
+  is treated as a secure context — but this is browser-dependent and not a
+  guarantee this project can make on your behalf.
+
+Do not describe static-hosting support as an unconditional guarantee. State it
+as: works for a visitor who has their own Local Agent running locally, subject
+to their browser's Origin/local-network permission behavior — local
+development (frontend and agent both on `localhost`) is unaffected by any of
+this.
+
 ## Handling of information
 
 - Never put the token, local paths, or personal data in a URL query or an external request.
   - The default `embed.js` passes the token to the iframe via `postMessage`, keeping it out of the URL.
-- Never send Claude Code I/O or local files to the cloud.
+- This project must not proxy Claude Code I/O, repository contents, or the token through any cloud service of its own — the web UI ↔ Local Agent bridge stays on the user's machine. This is a claim about *this project's* code, not about Claude Code's own behavior: Claude Code itself does send prompts and code context to its configured model provider (normally Anthropic) as part of its ordinary operation, governed by that provider's and the user's own account/organization data-handling terms. Do not word documentation to imply otherwise (e.g. a bare "nothing is ever sent to the cloud" is misleading and must not be used).
 - Do not persist the token beyond the startup log (exclude it if log collection is in place).
 
 ## Review checklist

@@ -36,7 +36,7 @@ separately and is independent of the frontend framework.
 
 ## Static hosting (GitHub Pages, etc.)
 
-- Frontend assets work as-is on static hosting.
-- `agentUrl` is `ws://127.0.0.1:4820` (the user's local agent), not the deploy URL.
-- Add the deploy origin (`https://<user>.github.io`, …) to `CLAUDE_AGENT_ALLOWED_ORIGINS`.
+- Frontend assets work as-is on static hosting — no server-side change needed on the frontend side.
+- `agentUrl` is `ws://127.0.0.1:4820` (the **visitor's own** local agent), not the deploy URL. This means the embed only works for a visitor who has their own Local Agent running with the matching token — it does not expose the deployer's Claude Code to other visitors.
+- Add the deploy origin (`https://<user>.github.io`, …) to `CLAUDE_AGENT_ALLOWED_ORIGINS`. This is mandatory but not sufficient on its own: some browsers additionally gate a public HTTPS page's access to `localhost` behind a Local Network Access / Private Network Access permission prompt. Don't present static-hosting support as an unconditional guarantee — see `references/security.md`.
 - For a sub-path deploy with a base path, set `iframeSrc` including that base.

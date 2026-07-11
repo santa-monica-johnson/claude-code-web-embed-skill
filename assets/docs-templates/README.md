@@ -5,12 +5,14 @@ This directory contains everything needed to integrate a **locally running Claud
 ## Overview
 
 ```
-Web UI (xterm.js terminal)
-        │ WebSocket (language-neutral JSON protocol)
-        ▼
+Web UI
+  └─ iframe or framework wrapper
+       └─ Terminal Frontend (xterm.js)
+              │ WebSocket (language-neutral JSON protocol)
+              ▼
 Local Agent (WebSocket + PTY)   ← choose an implementation: Node or Python
-        │
-        ▼
+              │
+              ▼
 Claude Code CLI (existing)
 ```
 
@@ -18,8 +20,8 @@ The Web UI connects to the Local Agent over WebSocket, and the Local Agent launc
 
 ## Requirements
 
-- **Node implementation**: Node.js 18+
-- **Python implementation**: Python 3.8+
+- **Node implementation**: Node.js 22+. Works on macOS, Linux, and Windows 10 1809+ (via `node-pty`/ConPTY).
+- **Python implementation**: Python 3.11+ recommended (the `websockets` dependency itself only requires 3.10+, but that version reaches end-of-life in October 2026). **macOS/Linux/Unix-like only** — it uses the stdlib `pty` module, which does not exist on Windows. Windows users should use the Node implementation instead.
 - Claude Code CLI installed locally (the `claude` command), logged in
 
 ## Install & start
@@ -100,7 +102,21 @@ Configure via `.env` (or environment variables); the variable names are identica
 - Claude Code launches in the **configured working directory**.
 - No public API for running arbitrary shell commands is exposed.
 
-Claude Code and local files are never sent to the cloud. Even if you host the frontend statically (e.g. on GitHub Pages), all communication with Claude Code is handled solely by the local Local Agent.
+The bridge between the Web UI and the Local Agent stays on the user's own
+machine — this project doesn't proxy terminal traffic, repository contents, or
+credentials through any cloud service of its own. **Claude Code itself
+communicates with whatever model provider it's configured to use** (normally
+Anthropic) as part of its ordinary operation, sending prompts and code
+context; that data handling is governed by the provider and by the user's own
+Claude Code account/organization settings, independent of this integration.
+
+If you host the frontend statically (e.g. on GitHub Pages), it still works —
+but only for a visitor who has their own Local Agent running on their own
+machine with the matching token. Depending on the browser, connecting from a
+publicly hosted page to `localhost` may also require the visitor to grant a
+local-network-access permission (a restriction some browsers are rolling out).
+Local development, where both the frontend and the agent run on `localhost`,
+is unaffected by any of this.
 
 ## Supported frameworks
 
