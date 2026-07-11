@@ -18,11 +18,20 @@
  *   sessionStorage はタブを閉じると消えるが、リロードでは保持されるため、
  *   「リロードしてもセッションは続くが、タブを閉じたら新しいセッションになる」
  *   という直感的な挙動になる。
+ *
+ * 要素選択からのテキスト挿入:
+ *   親（embed.js）から postMessage { type: 'claude-embed-insert-text', text }
+ *   を受け取ると、bracketed paste で包んで PTY へ input として送る。入力行に
+ *   挿入されるだけで自動送信はしない（ユーザーが確認・追記して Enter する）。
  */
 (function () {
   'use strict';
 
   var SESSION_ID_KEY = 'claudeTerminalSessionId';
+  // bracketed paste の開始/終了エスケープ（複数行テキストを「貼り付け」として
+  // 安全に挿入するため。行ごとの Enter 誤送信を防ぐ）。
+  var BRACKETED_PASTE_START = '\x1b[200~';
+  var BRACKETED_PASTE_END = '\x1b[201~';
 
   function getOrCreateSessionId() {
     var id = null;
@@ -210,7 +219,9 @@
   function send(obj) {
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(obj));
+      return true;
     }
+    return false;
   }
 
   function fit() {
@@ -238,8 +249,10 @@
     new ResizeObserver(scheduleFit).observe(document.getElementById('terminal'));
   }
 
-  // 親ウィンドウからの制御メッセージ。
+  // 親ウィンドウからの制御メッセージ。別フレーム／別ウィンドウからの成りすましを防ぐため、
+  // 送信元が実際の親ウィンドウであることを確認する（embed.js 側の _wireMessages と同じ方針）。
   window.addEventListener('message', function (ev) {
+    if (ev.source !== window.parent) return;
     var msg = ev.data;
     if (!msg || typeof msg !== 'object') return;
 
@@ -254,6 +267,20 @@
     } else if (msg.type === 'claude-embed-fit') {
       fit();
     } else if (msg.type === 'claude-embed-focus') {
+      term.focus();
+    } else if (msg.type === 'claude-embed-insert-text' && typeof msg.text === 'string') {
+      // bracketed paste で包んで送る。改行を含むテキストでも、行ごとに Enter として
+      // 誤送信されず、貼り付けとして入力行にそのまま挿入される（自動送信はしない）。
+      // 実機で bash / Claude Code 双方に対して検証済み。
+      // ESC バイトは事前に除去する: そのまま通すと、テキスト中に紛れ込んだ
+      // 終端シーケンス(\x1b[201~)で貼り付けが早期終了し、直後の \r が実際の
+      // Enter として解釈され得る（貼り付け保護を回避した誤/不正実行の経路になる）。
+      // 選択した要素のセレクタ/タグ/テキスト/HTML に本来 ESC 文字は含まれない。
+      var safeText = msg.text.replace(/\x1b/g, '');
+      var sent = send({ type: 'input', data: BRACKETED_PASTE_START + safeText + BRACKETED_PASTE_END });
+      if (!sent) {
+        setStatus('error', 'Not connected — could not insert the picked element.');
+      }
       term.focus();
     }
   });

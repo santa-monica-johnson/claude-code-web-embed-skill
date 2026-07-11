@@ -65,7 +65,8 @@ session can only be attached from one place at a time.
 
 ## Panel controls
 
-The embedded panel's header has:
+The embedded panel's header (iframe/`embed.js` method — the React/Vue wrappers
+have a simpler header without these controls) has:
 
 - **Position selector** — dock the terminal to the **bottom**, **right**, or
   **left** of the page, or pop it out as a **floating** window you can drag
@@ -73,6 +74,16 @@ The embedded panel's header has:
   instant and has nothing to do with `init()`'s `position` option, which only
   sets the *initial* placement — the choice made here is remembered across
   reloads via `localStorage`.
+- **Pick an element** (`⌖`) — click, then hover anywhere on the page to
+  highlight elements and click one to select it. Its CSS selector, opening
+  tag, visible text, and an HTML snippet are inserted into the terminal's
+  current input line (as a paste, not auto-submitted) so you can say
+  something like "make this bigger" with concrete context attached. The
+  selector is best-effort — if it matches more than one element, a note is
+  added so you know to double-check before acting on it. Press `Esc` or
+  click the panel's own UI to cancel without selecting anything. Known
+  limitation: content inside a Shadow DOM (web components) can only be
+  selected down to the shadow host, not the elements inside it.
 - **Reconnect** — force a fresh WebSocket connection without reloading the page.
 - **Full screen** (`⛶`) — expand the panel to fill the viewport.
 - **Minimize** (`—`) — collapse the panel to a small launcher button; click it

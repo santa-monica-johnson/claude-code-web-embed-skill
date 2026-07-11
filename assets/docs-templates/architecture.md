@@ -31,7 +31,7 @@ A design reference for developers. It summarizes the structure, communication fl
 ### Web Interface (frontend/)
 
 - `claude-terminal.html` / `.js` / `.css`: the terminal itself, running inside the iframe. Initializes xterm.js and connects to the Local Agent over WebSocket.
-- `embed.js`: a framework-agnostic script loaded by the existing page. Builds the panel (dockable bottom/right/left, or a floating window — switchable at runtime from a selector in its own header, persisted via `localStorage`), the control UI, and the iframe, and controls the iframe via `postMessage`.
+- `embed.js`: a framework-agnostic script loaded by the existing page. Builds the panel (dockable bottom/right/left, or a floating window — switchable at runtime from a selector in its own header, persisted via `localStorage`), the control UI, and the iframe, and controls the iframe via `postMessage`. Because it runs directly in the host page (not inside the iframe), it can also implement an element picker: on click, it attaches capturing listeners to the host document to highlight the hovered element and, on click, build a descriptor (CSS selector, opening tag, text, HTML snippet) and post it to the iframe as `claude-embed-insert-text`.
 - `react/`, `vue/`: thin wrappers for each framework (the actual implementation is the iframe).
 
 ### Local Agent (local-agent/)
@@ -89,6 +89,33 @@ PTY alive for a grace period, and lets a reconnect with the same id reattach
 (replaying buffered scrollback) instead of relaunching. This is the same model
 `tmux`/`screen` use for detach/reattach, applied to a browser tab instead of a
 terminal multiplexer client.
+
+### Why the element picker uses bracketed paste
+
+Writing a multi-line descriptor (selector/tag/text/HTML) straight into the PTY
+as plain input is unsafe: a raw `\n` byte is ordinarily interpreted by the
+receiving line editor as Enter, so a naive implementation would submit a
+partial, broken command after each line instead of leaving the whole block
+sitting in the prompt. Wrapping the text in the standard bracketed-paste
+escape sequence (`\x1b[200~ ... \x1b[201~`, the same mechanism a real terminal
+uses when you paste multi-line text) tells the receiving app "this is one
+pasted block" — internal newlines are preserved literally and nothing is
+submitted until the user presses Enter themselves. Verified against both
+`bash` and the real Claude Code CLI during development.
+
+Bracketed paste alone is not a complete safety boundary: if the wrapped text
+itself contained a real `\x1b[201~` (paste-end) byte sequence, that would
+close the paste early, and any bytes after it — including a `\r` — would be
+interpreted as real keystrokes, up to and including a real Enter that submits
+whatever was in the input line. Legitimate picker-generated text (a CSS
+selector, tag, trimmed text content, HTML snippet) never legitimately contains
+raw ESC bytes, so `claude-terminal.js` strips `\x1b` from the text before
+wrapping it — this was verified against an adversarial payload containing an
+embedded fake paste-end sequence followed by a shell command, confirming it
+lands inertly in the prompt rather than executing. The `message` listener also
+checks `ev.source === window.parent` (mirroring the same check `embed.js`
+already does in the other direction) so a different frame/window can't
+impersonate the parent to inject text this way.
 
 ## Security design
 

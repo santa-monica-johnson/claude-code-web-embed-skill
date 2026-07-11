@@ -4,8 +4,13 @@
  * ドッキングしたパネルを生成し、その中に claude-terminal.html を iframe として読み込む。
  * パネルは 下部(bottom)・右(right)・左(left)・浮遊ウィンドウ(floating) に配置でき、
  * ヘッダー上のセレクタから実行時に切り替えられる（選択は localStorage に保存）。
- * ヘッダーには 配置切替 / 再接続 / 全画面 / 最小化 / 接続状態 の UI を持つ。
+ * ヘッダーには 配置切替 / 要素選択 / 再接続 / 全画面 / 最小化 / 接続状態 の UI を持つ。
  * 端末そのものの入出力は iframe（xterm.js）側が担当し、本スクリプトはパネルの枠と制御のみを担う。
+ *
+ * 要素選択（⌖ボタン）: クリックするとページ上の任意の要素をハイライト付きで選べる
+ * モードに入る。選んだ要素の CSS セレクタ・タグ・テキスト・HTML 抜粋を、iframe へ
+ * postMessage（claude-embed-insert-text）で送り、claude-terminal.js 側が bracketed
+ * paste としてターミナルの入力行に挿入する（自動送信はしない）。
  *
  * 使い方:
  *   <script src="/claude-embed/embed.js"></script>
@@ -102,7 +107,11 @@
       '.claude-embed-launcher{position:fixed;z-index:2147483000;background:#238636;color:#fff;border:0;' +
       'border-radius:20px;padding:8px 16px;font-size:13px;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.35);' +
       'font-family:-apple-system,sans-serif;right:16px;bottom:16px}' +
-      '.claude-embed-launcher.is-hidden{display:none}';
+      '.claude-embed-launcher.is-hidden{display:none}' +
+      '.claude-embed-btn.is-active{background:#1f6feb;border-color:#1f6feb;color:#fff}' +
+      '.claude-embed-picking,.claude-embed-picking *{cursor:crosshair!important}' +
+      '.claude-embed-pick-overlay{position:fixed;z-index:2147483001;display:none;pointer-events:none;' +
+      'box-sizing:border-box;border:2px solid #58a6ff;background:rgba(88,166,255,.15);border-radius:2px}';
     var style = document.createElement('style');
     style.id = 'claude-embed-styles';
     style.textContent = css;
@@ -201,9 +210,11 @@
       select.appendChild(opt);
     });
 
+    var pickBtn = el('button', 'claude-embed-btn', '⌖');
     var reconnectBtn = el('button', 'claude-embed-btn', 'Reconnect');
     var fullscreenBtn = el('button', 'claude-embed-btn', '⛶');
     var minimizeBtn = el('button', 'claude-embed-btn', '—');
+    pickBtn.title = 'Pick an element from the page';
     reconnectBtn.title = 'Reconnect';
     fullscreenBtn.title = 'Full screen';
     minimizeBtn.title = 'Minimize';
@@ -212,6 +223,7 @@
     header.appendChild(this.statusEl);
     header.appendChild(spacer);
     header.appendChild(select);
+    header.appendChild(pickBtn);
     header.appendChild(reconnectBtn);
     header.appendChild(fullscreenBtn);
     header.appendChild(minimizeBtn);
@@ -240,13 +252,19 @@
     this.iframe = iframe;
     this.grip = grip;
     this.selectEl = select;
+    this.pickBtn = pickBtn;
     this.launcher = launcher;
+    this._picking = false;
 
     this._applySize();
     if (!this.isOpen) this.close();
 
     select.addEventListener('change', function () {
       self.setPosition(select.value);
+    });
+    pickBtn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      self.togglePicking();
     });
     reconnectBtn.addEventListener('click', function (ev) {
       ev.stopPropagation();
@@ -297,6 +315,171 @@
   // ドラッグ中は iframe がマウスイベントを奪わないよう pointer-events を切る。
   ClaudeEmbed.prototype._setIframeInteractive = function (on) {
     if (this.iframe) this.iframe.style.pointerEvents = on ? '' : 'none';
+  };
+
+  // 自分自身の UI（パネル・ランチャー）は要素選択の対象から除外する。
+  // ハイライト枠(.claude-embed-pick-overlay)は pointer-events:none のため
+  // イベントターゲットには絶対にならないので、判定対象に含める必要はない。
+  ClaudeEmbed.prototype._isOwnUi = function (node) {
+    return !!(node && node.closest && node.closest('.claude-embed-panel, .claude-embed-launcher'));
+  };
+
+  // 選択した要素から、ターミナルに渡す説明文を組み立てる
+  // （CSS セレクタ + 開始タグ + テキスト内容 + outerHTML 抜粋）。
+  ClaudeEmbed.prototype._elementDescriptor = function (target) {
+    function truncate(s, n) {
+      s = s || '';
+      return s.length > n ? s.slice(0, n) + '…' : s;
+    }
+
+    // SVG 要素では className が文字列ではなく SVGAnimatedString になるため、
+    // HTML/SVG 双方で同じ形で使える classList 経由で読む。
+    function classesOf(node) {
+      if (!node.classList) return [];
+      var out = [];
+      for (var i = 0; i < node.classList.length; i++) out.push(node.classList[i]);
+      return out;
+    }
+
+    function cssPath(node) {
+      var parts = [];
+      var cur = node;
+      var depth = 0;
+      while (cur && cur.nodeType === 1 && depth < 6) {
+        var part = cur.nodeName.toLowerCase();
+        if (cur.id) {
+          part += '#' + cur.id;
+          parts.unshift(part);
+          break; // id はほぼ一意なのでここで打ち切る
+        }
+        var cls = classesOf(cur).slice(0, 3).join('.');
+        if (cls) part += '.' + cls;
+        var parent = cur.parentElement;
+        if (parent) {
+          var same = [];
+          for (var i = 0; i < parent.children.length; i++) {
+            if (parent.children[i].nodeName === cur.nodeName) same.push(parent.children[i]);
+          }
+          if (same.length > 1) part += ':nth-of-type(' + (same.indexOf(cur) + 1) + ')';
+        }
+        parts.unshift(part);
+        cur = cur.parentElement;
+        depth++;
+      }
+      return parts.join(' > ');
+    }
+
+    function openingTag(html, node) {
+      var m = html.match(/^<[^>]*>/);
+      return m ? m[0] : '<' + node.nodeName.toLowerCase() + '>';
+    }
+
+    var fullHtml = target.outerHTML || '';
+    var selector = cssPath(target);
+
+    // ヒューリスティックなので、生成したセレクタが実際に一意とは限らない。
+    // 一致数を確認し、1件でなければその旨を添えて誤解を避ける。
+    var matchNote = '';
+    if (selector) {
+      try {
+        var matchCount = document.querySelectorAll(selector).length;
+        if (matchCount !== 1) matchNote = ' (matches ' + matchCount + ' elements — may not be unique)';
+      } catch (e) {
+        /* 生成したセレクタが不正な場合は注記なしで続行 */
+      }
+    }
+
+    var tag = openingTag(fullHtml, target);
+    var text = truncate((target.textContent || '').replace(/\s+/g, ' ').trim(), 140);
+    var html = truncate(fullHtml.replace(/\s+/g, ' ').trim(), 300);
+
+    return (
+      '[Selected element on page]\n' +
+      'selector: ' + selector + matchNote + '\n' +
+      'tag: ' + tag + '\n' +
+      'text: ' + text + '\n' +
+      'html: ' + html
+    );
+  };
+
+  // 要素選択モードを開始する。ページ上をホバーするとハイライト枠が表示され、
+  // クリックで確定（クリックそのものは preventDefault してページ側の動作を止める）。
+  ClaudeEmbed.prototype.startPicking = function () {
+    if (this._picking) return;
+    this._picking = true;
+    this.pickBtn.classList.add('is-active');
+    document.documentElement.classList.add('claude-embed-picking');
+
+    var overlay = el('div', 'claude-embed-pick-overlay');
+    document.body.appendChild(overlay);
+    this._pickOverlay = overlay;
+
+    var self = this;
+    var lastTarget = null;
+    this._onPickMove = function (ev) {
+      var t = ev.target;
+      // Element 以外（document 自体など、ごく稀なケース）は getBoundingClientRect を
+      // 持たないため、ここで弾く（_isOwnUi は node.closest が無ければ false を返す
+      // だけなので、それ単独では Element かどうかの判定にならない）。
+      if (!t || t.nodeType !== 1 || self._isOwnUi(t)) {
+        lastTarget = null;
+        overlay.style.display = 'none';
+        return;
+      }
+      if (t === lastTarget) return; // 同じ要素上での再発火はレイアウト計算を省く
+      lastTarget = t;
+      var r = t.getBoundingClientRect();
+      overlay.style.display = 'block';
+      overlay.style.left = r.left + 'px';
+      overlay.style.top = r.top + 'px';
+      overlay.style.width = r.width + 'px';
+      overlay.style.height = r.height + 'px';
+    };
+    this._onPickClick = function (ev) {
+      var t = ev.target;
+      if (self._isOwnUi(t)) {
+        // パネル自身のボタン等をクリックした場合は、その操作は通常通り行わせつつ
+        // 選択モードは終了する（Esc 以外にも安全にキャンセルできるようにする）。
+        self.stopPicking();
+        return;
+      }
+      if (!t || t.nodeType !== 1) {
+        self.stopPicking();
+        return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+      var text = self._elementDescriptor(t);
+      self.stopPicking();
+      if (!self.isOpen) self.open();
+      self._postToIframe({ type: 'claude-embed-insert-text', text: text });
+    };
+    this._onPickKey = function (ev) {
+      if (ev.key === 'Escape') self.stopPicking();
+    };
+
+    document.addEventListener('mouseover', this._onPickMove, true);
+    document.addEventListener('click', this._onPickClick, true);
+    document.addEventListener('keydown', this._onPickKey, true);
+  };
+
+  ClaudeEmbed.prototype.stopPicking = function () {
+    if (!this._picking) return;
+    this._picking = false;
+    this.pickBtn.classList.remove('is-active');
+    document.documentElement.classList.remove('claude-embed-picking');
+    document.removeEventListener('mouseover', this._onPickMove, true);
+    document.removeEventListener('click', this._onPickClick, true);
+    document.removeEventListener('keydown', this._onPickKey, true);
+    if (this._pickOverlay && this._pickOverlay.parentNode) {
+      this._pickOverlay.parentNode.removeChild(this._pickOverlay);
+    }
+    this._pickOverlay = null;
+  };
+
+  ClaudeEmbed.prototype.togglePicking = function () {
+    if (this._picking) this.stopPicking();
+    else this.startPicking();
   };
 
   ClaudeEmbed.prototype._savePosition = function () {
@@ -488,6 +671,7 @@
   };
 
   ClaudeEmbed.prototype.destroy = function () {
+    this.stopPicking();
     window.removeEventListener('message', this._onMessage);
     if (this.panel && this.panel.parentNode) this.panel.parentNode.removeChild(this.panel);
     if (this.launcher && this.launcher.parentNode) this.launcher.parentNode.removeChild(this.launcher);
