@@ -1,12 +1,13 @@
-# Step 3 — 統合・検証
+# Step 3 — Integrate & verify
 
-既存 UI へ埋め込みを 1 箇所だけ組み込み、ドキュメントを配置し、完了条件を確認する。既存アプリの構成は大きく変えない。
+Wire the embed into the existing UI in exactly one place, place the docs, and
+confirm the completion criteria. Do not significantly change the existing app.
 
-## 統合（方式別に 1 箇所）
+## Integration (one place, per method)
 
-### iframe 方式（既定）
+### iframe method (default)
 
-共通レイアウト／エントリ HTML に次を 1 箇所だけ追加する。
+Add this once to the shared layout / entry HTML:
 
 ```html
 <script src="/claude-embed/embed.js"></script>
@@ -14,40 +15,43 @@
   ClaudeEmbed.init({
     iframeSrc: '/claude-embed/claude-terminal.html',
     agentUrl: 'ws://127.0.0.1:4820',
-    token: window.__CLAUDE_AGENT_TOKEN__, // 開発時はサーバ／ビルド時に注入
+    token: window.__CLAUDE_AGENT_TOKEN__, // inject via server / build time in dev
   });
 </script>
 ```
 
-- Next.js: `pages/_app` か `app/layout` に `next/script` で読み込む。
-- Nuxt: `app.vue` か plugin で読み込む。
-- Astro: 共通レイアウトの `<body>` 末尾に。
-- Vanilla: `index.html` の `</body>` 直前に。
+- Next.js: load in `pages/_app` or `app/layout` via `next/script`.
+- Nuxt: in `app.vue` or a plugin.
+- Astro: at the end of the shared layout `<body>`.
+- Vanilla: just before `</body>` in `index.html`.
 
-### React / Vue 方式
+### React / Vue method
 
-`ClaudeTerminal` コンポーネントを任意の場所に配置し、`iframeSrc`・`agentUrl`・`token` を渡す（`assets/frontend/react|vue` のヘッダコメント参照）。
+Place the `ClaudeTerminal` component and pass `iframeSrc` / `agentUrl` / `token`
+(see the header comments in `assets/frontend/react|vue`).
 
-## トークンの渡し方
+## Passing the token
 
-トークンは URL に載せず、フロントへ安全に注入する。
+Inject the token into the frontend without putting it in the URL.
 
-- 開発時: サーバ側テンプレートや環境変数からグローバル変数へ埋め込む。
-- 既定の `embed.js` は `postMessage` で iframe へ渡すため、URL クエリにトークンは出ない。
+- Dev: embed it into a global from a server template or environment variable.
+- The default `embed.js` passes the token to the iframe via `postMessage`, so it never appears in the URL query.
 
-> セキュリティ上、トークン・ローカルパス・個人データを URL クエリや外部リクエストに載せない。
+> For security, never put the token, local paths, or personal data in a URL query or an external request.
 
-## ドキュメント配置
+## Place the docs
 
-`assets/docs-templates/` の `README.md`・`architecture.md`・`setup.md` を統合先（例: `claude-embed/` 直下）へコピーする。プロジェクト固有のポート・パスに合わせて微調整する。
+Copy `assets/docs-templates/` (`README.md`, `architecture.md`, `setup.md`) into
+the integration target (e.g. under `claude-embed/`). Adjust the port/paths and,
+if relevant, note which agent implementation (node/python) was chosen.
 
-## 検証（完了条件）
+## Verify (completion criteria)
 
-ブラウザを自動で開いて確認しない。次を確認する。
+Do not auto-launch a browser. Confirm:
 
-1. Local Agent を起動し、`curl -s http://127.0.0.1:4820/health` が `{"status":"ok",...}` を返す。
-2. `claudeAvailable` が `true`（`claude` がインストール・ログイン済み）。
-3. 統合コードが 1 箇所に入り、既存構成を壊していない（ビルドが通る）。
-4. `setup.md` の手動確認手順をユーザーに案内する（表示・入力・出力・リサイズ・再接続）。
+1. Start the Local Agent and `curl -s http://127.0.0.1:4820/health` returns `{"status":"ok",...}`.
+2. `claudeAvailable` is `true` (`claude` installed and logged in).
+3. The integration lives in one place and does not break the existing build.
+4. Walk the user through the manual checks in `setup.md` (render, input, output, resize, reconnect).
 
-`SKILL.md` の「完了条件」を最終チェックリストとして用いる。
+Use the "Completion criteria" in `SKILL.md` as the final checklist.

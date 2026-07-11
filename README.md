@@ -4,13 +4,18 @@ A Claude Code skill that **embeds a locally running Claude Code into an existing
 
 ```
 Existing Web UI (xterm.js / iframe)
-        │ WebSocket
+        │ WebSocket (language-neutral JSON protocol)
         ▼
-Local Agent (WebSocket + PTY + security)
+Local Agent (WebSocket + PTY + security)   ← implementation is selectable
         │
         ▼
 Claude Code CLI (existing, as-is)
 ```
+
+The frontend and the Local Agent talk over a small, language-neutral protocol
+([`references/protocol.md`](references/protocol.md)), so **the agent can be written
+in any language**. Node.js and Python implementations ship ready-made and are
+verified working; Go/Rust/Ruby/… can be added via the porting guide.
 
 ## What is this
 
@@ -26,10 +31,13 @@ This repository bundles a single Claude Code skill (`SKILL.md`) together with th
 │   ├── step2-scaffold.md        #   Generate & place
 │   └── step3-integrate.md       #   Integrate & verify
 ├── references/                  # Decision material
+│   ├── protocol.md              #   Language-neutral agent protocol + porting guide
 │   ├── project-analysis.md      #   Framework quick-reference
 │   └── security.md              #   Security requirements
 └── assets/                      # Templates placed as-is
-    ├── local-agent/             #   Local Agent (Node.js / ws / node-pty)
+    ├── local-agent/             #   Local Agent — pick one implementation
+    │   ├── node/                #     Node.js (ws + node-pty)
+    │   └── python/              #     Python (stdlib pty + websockets)
     ├── frontend/                #   xterm.js terminal + embed.js + React/Vue wrappers
     └── docs-templates/          #   README / architecture / setup for the target project
 ```
@@ -58,8 +66,8 @@ The skill runs through Steps 1–3 and places/integrates `assets/` into the targ
 
 After placement, see `assets/docs-templates/` (README / setup / architecture), which is copied into the target project. In short:
 
-- Requires Node.js 18+ and a logged-in `claude` CLI.
-- In `local-agent/`, run `npm install && npm start`. Copy the session token from the startup log into the frontend.
+- Requires a logged-in `claude` CLI, plus the runtime for your chosen agent (Node.js 18+ **or** Python 3.8+).
+- Node: in `local-agent/node/`, run `npm install && npm start`. Python: in `local-agent/python/`, `pip install -r requirements.txt && python3 agent.py`. Copy the session token from the startup log into the frontend.
 - The iframe approach is the default. Works with React / Next / Vue / Nuxt / Svelte / Astro / Vite / Vanilla, and with static hosting such as GitHub Pages.
 
 ## Security

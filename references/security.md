@@ -1,49 +1,52 @@
-# セキュリティ要件
+# Security requirements
 
-Local Agent はローカルの Claude Code を PTY 起動する。実質的にローカル環境への強力なアクセスを Web UI へ開くため、以下は**必須**であり外してはならない。
+The Local Agent launches your local Claude Code on a PTY. It effectively opens
+powerful local access to the web UI, so the following are **mandatory** and must
+not be removed — regardless of the implementation language.
 
-## 必須要件
+## Mandatory requirements
 
-1. **localhost 限定バインド**
-   - 既定 `127.0.0.1`。公開ネットワークにバインドしない。
-   - `CLAUDE_AGENT_HOST` を変更した場合、`index.js` が非 loopback を警告する。
+1. **Loopback-only bind**
+   - Default `127.0.0.1`. Never bind to a public network.
+   - If `CLAUDE_AGENT_HOST` is changed, the agent warns on a non-loopback bind.
 
-2. **Origin 制限（ブラウザ経由の CSRF / DNS リバインディング対策）**
-   - `CLAUDE_AGENT_ALLOWED_ORIGINS` 指定時はそのリストのみ許可。
-   - 未指定時は `localhost` / `127.0.0.1` / `::1` の Origin のみ許可。
-   - Origin ヘッダ無し（ブラウザ以外のローカルクライアント）は CSRF 経路にならないため許可。
+2. **Origin restriction (CSRF / DNS-rebinding defense for browsers)**
+   - If `CLAUDE_AGENT_ALLOWED_ORIGINS` is set, allow only listed origins.
+   - If unset, allow only `localhost` / `127.0.0.1` / `::1` origins.
+   - A missing `Origin` header (non-browser local client) is allowed — it is not a CSRF vector.
 
-3. **セッショントークン（真の認可）**
-   - 全 WebSocket 接続でトークン必須。未一致は `401`。
-   - 定数時間比較（`crypto.timingSafeEqual`、長さ不一致は即 false）でタイミング攻撃を防ぐ。
-   - 既定は起動ごとにランダム生成。固定は `CLAUDE_AGENT_TOKEN`。
+3. **Session token (the real authorization)**
+   - Required on every WebSocket connection; mismatch → `401`.
+   - Compare in **constant time** (e.g. `crypto.timingSafeEqual` / `secrets.compare_digest`; length mismatch → immediate false) to resist timing attacks.
+   - Randomly generated per start by default; fix with `CLAUDE_AGENT_TOKEN`.
 
-4. **作業ディレクトリ限定**
-   - Claude Code は `CLAUDE_AGENT_CWD`（既定はエージェントの cwd）で起動する。
-   - 想定外の広範囲を作業対象にしない。用途に応じて限定する。
+4. **Working-directory scoping**
+   - Claude Code launches in `CLAUDE_AGENT_CWD` (default: the agent's cwd).
+   - Do not make an unexpectedly broad tree the working target; scope it to the use case.
 
-5. **子プロセス管理**
-   - WebSocket が閉じたら PTY プロセスを確実に kill する。
-   - シャットダウン時は全接続を切断し PTY を終了する。
-   - 同時セッション上限（`CLAUDE_AGENT_MAX_SESSIONS`）で暴走を防ぐ。
+5. **Child-process management**
+   - Kill the PTY process reliably when the WebSocket closes (kill the process group).
+   - On shutdown, disconnect all connections and terminate PTYs.
+   - Bound runaway usage with a concurrent-session cap (`CLAUDE_AGENT_MAX_SESSIONS`).
 
-6. **任意 Shell 実行 API を公開しない**
-   - 提供するのは「Claude Code を PTY 起動して中継する」ことのみ。
-   - 汎用のコマンド実行エンドポイントは作らない。
+6. **No arbitrary-shell API**
+   - Provide only "launch Claude Code on a PTY and relay".
+   - Never add a general command-execution endpoint.
 
-## 情報の扱い
+## Handling of information
 
-- トークン・ローカルパス・個人データを URL クエリや外部リクエストに載せない。
-  - 既定の `embed.js` はトークンを `postMessage` で iframe に渡し、URL に出さない。
-- Claude Code の入出力・ローカルファイルをクラウドへ送信しない。
-- 起動ログ以外にトークンを残さない（ログ収集がある場合は除外する）。
+- Never put the token, local paths, or personal data in a URL query or an external request.
+  - The default `embed.js` passes the token to the iframe via `postMessage`, keeping it out of the URL.
+- Never send Claude Code I/O or local files to the cloud.
+- Do not persist the token beyond the startup log (exclude it if log collection is in place).
 
-## レビュー観点
+## Review checklist
 
-生成・変更後、`code-review` スキルで少なくとも次を確認する。
+After generating or changing an implementation, verify at least the following
+(use the `code-review` skill):
 
-- upgrade 前に Origin とトークンの両方を検証しているか。
-- トークン比較が定数時間か。
-- WS クローズ時・エラー時に PTY を kill しているか（リーク無し）。
-- 端末サイズなど外部入力を整数・範囲でサニタイズしているか。
-- 既定バインドが loopback か。
+- Both Origin and token are validated before upgrade.
+- Token comparison is constant-time.
+- The PTY is killed on socket close and on error (no leaks).
+- External input (terminal dimensions, etc.) is sanitized to integers within range.
+- The default bind is loopback.

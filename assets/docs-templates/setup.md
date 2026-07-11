@@ -24,10 +24,21 @@ The first run triggers an authentication flow. Confirm you are logged in, then e
 
 ## 3. Start the Local Agent
 
+Run the implementation you chose.
+
+**Node:**
 ```bash
-cd claude-embed/local-agent
+cd claude-embed/local-agent/node
 npm install            # first time only (builds node-pty)
 CLAUDE_AGENT_CWD="/path/to/your/project" npm start
+```
+
+**Python:**
+```bash
+cd claude-embed/local-agent/python
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt   # first time only
+CLAUDE_AGENT_CWD="/path/to/your/project" python3 agent.py
 ```
 
 On startup you'll see output like this:

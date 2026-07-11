@@ -1,24 +1,29 @@
-# Step 1 — プロジェクト解析
+# Step 1 — Analyze & choose
 
-対象プロジェクトを調べ、**埋め込み方式**と**配置先**を決める。SQL でいう「母集団・粒度」を先に固定するのと同じで、ここで統合方針を一文にしてから手を動かす。
+Inspect the target project and decide the **embedding method**, the **Local Agent language**, and the **placement**. Fix these as a one-line statement before touching anything (like fixing the "population and grain" before writing a query).
 
-## 調べること
+## What to inspect
 
-1. **統合先ルート**: どのディレクトリに統合するか。曖昧ならユーザーに確認する。
-2. **`package.json`**: フレームワーク・依存・スクリプト（`dev`/`build`）を読む。無ければ Vanilla/静的サイトとして扱う。
-3. **パッケージマネージャー**: `package-lock.json`→npm / `yarn.lock`→yarn / `pnpm-lock.yaml`→pnpm / `bun.lockb`→bun。
-4. **フレームワーク**: React / Next / Vue / Nuxt / Svelte / Astro / Vite / Vanilla のいずれか（`references/project-analysis.md` の早見表）。
-5. **静的配信の場所**: `public/`・`static/`・`assets/`・出力ディレクトリなど。iframe 用の HTML/JS を置ける場所。
-6. **エントリ / レイアウト**: `embed.js` を 1 箇所読み込める共通レイアウト（`_app`・`layout`・`App.vue`・`index.html` 等）。
-7. **静的ホスティング前提か**: GitHub Pages などにデプロイするか（フロントは静的、Local Agent はローカルのまま）。
+1. **Integration root**: which directory to integrate into. If unclear, ask.
+2. **`package.json`**: framework, dependencies, scripts (`dev`/`build`). If absent, treat as a Vanilla/static site.
+3. **Package manager**: `package-lock.json`→npm / `yarn.lock`→yarn / `pnpm-lock.yaml`→pnpm / `bun.lockb`→bun.
+4. **Framework**: React / Next / Vue / Nuxt / Svelte / Astro / Vite / Vanilla (see `references/project-analysis.md`).
+5. **Static serve location**: `public/`, `static/`, `assets/`, output dir — somewhere to place the iframe HTML/JS.
+6. **Entry / layout**: a shared layout where `embed.js` can be loaded once (`_app`, `layout`, `App.vue`, `index.html`, …).
+7. **Static hosting?**: whether it deploys to something like GitHub Pages (frontend static, Local Agent stays local).
 
-## 決めること（一文で明示する）
+## What to decide (state in one line)
 
-- **埋め込み方式**: 既定は **iframe**（フレームワーク非依存・最小侵襲）。React/Vue で密に組み込みたい要望が明確なときだけラッパーを使う。
-- **フロント配置先**: 静的配信できるパス（例: `public/claude-embed/`）。
-- **Local Agent 配置先**: プロジェクト直下 `local-agent/`（またはリポジトリ外の任意の場所でも可）。
-- **ポート / Origin**: 既定ポート `4820`。Web UI の Origin（`http://localhost:5173` や `https://<user>.github.io` 等）を許可リストに入れるか。
+- **Embedding method**: default is **iframe** (framework-agnostic, least invasive). Use the React/Vue wrapper only when tight framework integration is explicitly wanted.
+- **Local Agent language**: **first-class, up-front choice.**
+  - `node` — Node 18+. Familiar to web devs; uses `ws` + `node-pty` (native build).
+  - `python` — Python 3.8+. Stdlib `pty` + `websockets`; no native build.
+  - a **new language** (Go, Rust, Ruby, …) — implement `references/protocol.md` under `assets/local-agent/<lang>/`. Go/Rust give a single static binary and avoid native-build friction.
+  - If the user has no preference: Node if the project is already Node-based; Python if they want to avoid native builds; suggest Go when a distributable single binary matters.
+- **Frontend placement**: a static-serve path (e.g. `public/claude-embed/`).
+- **Local Agent placement**: `local-agent/` under the project (or anywhere outside it).
+- **Port / origin**: default port `4820`. Whether to allowlist the Web UI origin (`http://localhost:5173`, `https://<user>.github.io`, …).
 
-## 確認してから進む
+## Confirm, then proceed
 
-決めた方針を「埋め込み方式＝X、フロント配置＝Y、Agent 配置＝Z、Origin＝W」の形で提示する。想定と違う構成（モノレポ・SSR のみでレイアウト共有が難しい等）なら、解釈を示して合意を取ってから Step 2 へ。
+Present the decision as "embedding = X, agent language = Y, frontend placement = Z, agent placement = W, origin = V". If the structure differs from expectations (monorepo, SSR-only with no shared layout, …), state your interpretation and get agreement before Step 2.

@@ -1,70 +1,75 @@
 ---
 name: claude-code-web-embed
-description: 既存の Web インターフェースへ、ローカルで動作する Claude Code をそのまま統合する汎用スキル。Claude Code CLI は再実装せず、PC にインストール済みのものを Local Agent（WebSocket + PTY）経由で Web UI の xterm.js ターミナルに橋渡しする。「Web アプリに Claude Code のターミナルを埋め込みたい」「サイトに Claude Code を統合したい」「ブラウザから Claude Code を動かしたい」「Local Agent と埋め込みターミナルを生成して」というときに使う。React/Next/Vue/Nuxt/Svelte/Astro/Vite/Vanilla、および GitHub Pages など静的ホスティングに対応。iframe 方式が既定。
+description: Integrate a locally running Claude Code into an existing web interface. The Claude Code CLI is not reimplemented — the copy installed on the user's machine is bridged to an xterm.js terminal in the web UI through a Local Agent (WebSocket + PTY). Use when the user wants to "embed a Claude Code terminal in a web app", "integrate Claude Code into a site", "run Claude Code from the browser", or "generate a Local Agent and embedded terminal". The Local Agent language is selectable up front (Node.js or Python ship ready-made; any language can be added via the protocol). Works with React/Next/Vue/Nuxt/Svelte/Astro/Vite/Vanilla and static hosting such as GitHub Pages. The iframe approach is the default.
 ---
 
-# claude-code-web-embed（既存 Web への Claude Code 統合）
+# claude-code-web-embed (embed Claude Code into an existing web app)
 
-**ローカルにインストール済みの Claude Code CLI を、既存の Web UI に埋め込む。** Claude Code は変更も再実装もしない。この PC の `claude` をそのまま PTY 上で起動し、WebSocket で xterm.js ターミナルへ中継する。
+**Embed the locally installed Claude Code CLI into an existing web UI.** Claude Code is neither modified nor reimplemented — the machine's `claude` is launched on a PTY and relayed over WebSocket to an xterm.js terminal.
 
 ```
-既存 Web UI（xterm.js ターミナル / iframe）
-        │ WebSocket
+Existing web UI (xterm.js terminal / iframe)
+        │ WebSocket  (language-neutral JSON protocol)
         ▼
-Local Agent（WebSocket + PTY + セキュリティ）   ← このスキルが生成
+Local Agent (WebSocket + PTY + security)   ← this skill scaffolds it; language is selectable
         │
         ▼
-Claude Code CLI（既存・そのまま）
+Claude Code CLI (existing, as-is)
 ```
 
-## このスキルが生成するもの
+## What this skill produces
 
-- **Local Agent**（`assets/local-agent/`）: WebSocket サーバ・PTY 管理・Claude 起動・セキュリティ。
-- **Frontend**（`assets/frontend/`）: xterm.js ターミナル（iframe）・埋め込みスクリプト・接続状態 UI・React/Vue ラッパー。
-- **ドキュメント**（`assets/docs-templates/`）: README / architecture / setup。
+- **Local Agent** (`assets/local-agent/`): pick one implementation — **`node/`** (Node 18+) or **`python/`** (Python 3.8+). Both speak the same protocol (`references/protocol.md`). Any other language (Go, Rust, …) can be added via the porting guide.
+- **Frontend** (`assets/frontend/`): xterm.js terminal (iframe), embed script, connection-status UI, plus React/Vue wrappers. Shared across all agent languages.
+- **Docs** (`assets/docs-templates/`): README / architecture / setup for the target project.
 
-これらは**完成済みのテンプレート資産**である。スキルの仕事は、対象プロジェクトを解析し、これらを適切な場所へ配置し、既存 UI へ最小変更で組み込むこと。**ゼロから書き直さない**（毎回同じコードを再生成しない）。
+These are **finished template assets**. The skill's job is to analyze the target project, choose the embedding method and agent language, place the assets, and wire them into the existing UI with minimal change. **Do not rewrite the code from scratch each time.**
 
-## 進め方（3 ステップ）
+## Procedure (3 steps)
 
-作業前に必ず対象プロジェクトのルートを確認する（どこに統合するのか）。曖昧なら統合先ディレクトリをユーザーに一言確認してから進める。
+Always confirm the target project root first (where the integration goes). If unclear, ask in one line before proceeding.
 
-### Step 1 — プロジェクト解析　`steps/step1-analyze.md`
+### Step 1 — Analyze & choose  `steps/step1-analyze.md`
 
-`package.json`・使用フレームワーク・パッケージマネージャー・レイアウト構造・静的公開の有無を調べ、**埋め込み方式（iframe / React / Vue）** と **配置先** を決める。判断を一文で明示してから次へ進む。
+Inspect `package.json`, framework, package manager, layout, and whether it is statically hosted. Decide, and state in one line:
+- **Embedding method** — iframe (default, framework-agnostic) vs React/Vue wrapper.
+- **Local Agent language** — `node` or `python` (or a new language via `references/protocol.md`). This is a first-class, up-front choice.
+- **Placement** and **port/origin**.
 
-### Step 2 — 生成・配置　`steps/step2-scaffold.md`
+### Step 2 — Generate & place  `steps/step2-scaffold.md`
 
-`assets/` のテンプレートを対象プロジェクトへコピーする（既定の配置先は `public/claude-embed/` または静的配信可能な場所 + `local-agent/`）。プロジェクト固有の値（ポート・Origin・配信パス）だけを調整する。
+Copy the frontend assets and the **chosen** agent implementation into the target project. Adjust only project-specific values (port, origin, serve path).
 
-### Step 3 — 統合・検証　`steps/step3-integrate.md`
+### Step 3 — Integrate & verify  `steps/step3-integrate.md`
 
-既存 UI へ埋め込みを 1 箇所組み込む（iframe 既定なら `embed.js` の読み込み + `ClaudeEmbed.init`）。ドキュメントを配置し、**完了条件**（下記）を確認する。
+Wire the embed into the existing UI in one place (for the iframe default: load `embed.js` + call `ClaudeEmbed.init`). Place the docs and confirm the **completion criteria** below.
 
-## 参照
+## References
 
-- `references/project-analysis.md` — フレームワーク別の配置先・注入方法の早見表。
-- `references/security.md` — セキュリティ要件と検証観点（localhost 限定・Origin・トークン・作業ディレクトリ）。
-- `assets/docs-templates/architecture.md` — 設計判断（PTY / WebSocket / iframe の採用理由）。
+- `references/protocol.md` — the language-neutral contract between frontend and agent, plus a porting guide for adding languages.
+- `references/project-analysis.md` — per-framework placement/injection quick-reference.
+- `references/security.md` — mandatory security requirements (loopback-only, Origin, token, working-directory scope).
+- `assets/docs-templates/architecture.md` — design rationale (why PTY / WebSocket / iframe).
 
-## 原則
+## Principles
 
-- **Claude Code を再実装しない。** 既存 CLI を PTY 起動するだけ。Thinking / Tool Use / Slash Commands / Permission ダイアログ / Bash / Git / MCP はそのまま使える。
-- **既存アプリの構成を大きく変えない。** iframe 方式で最小侵襲に統合する。
-- **セキュリティは必須。** localhost 限定・Origin 制限・セッショントークン・作業ディレクトリ限定を外さない。任意 Shell 実行の公開 API は作らない（`references/security.md`）。
-- **クラウドへ送らない。** Claude Code もローカルファイルも外部送信しない。フロントを静的公開しても通信は Local Agent のみが担う。
+- **Do not reimplement Claude Code.** Just launch the existing CLI on a PTY. Thinking / Tool Use / Slash Commands / Permission dialogs / Bash / Git / MCP all work unchanged.
+- **The agent language is a choice, not a given.** Node and Python are ready; the protocol makes any language a drop-in. Keep the frontend identical across languages.
+- **Do not disrupt the existing app.** Integrate with minimal change via the iframe approach.
+- **Security is mandatory.** Loopback-only bind, Origin allowlist, session token, working-directory scope. No public arbitrary-shell API (`references/security.md`).
+- **Nothing goes to the cloud.** Neither Claude Code nor local files are sent externally. Even with a statically hosted frontend, all communication is handled solely by the Local Agent.
 
-## 完了条件
+## Completion criteria
 
-生成・統合後、以下を満たすことを確認する。
+After generating/integrating, confirm:
 
-- Local Agent が起動し、`/health` が `ok` を返す。
-- Web UI 内にターミナルが表示され、キーボード入力ができる。
-- Claude Code の出力が表示される。
-- リサイズが端末に反映される。
-- Local Agent 再起動時に自動再接続する。
-- すべての通信が Local Agent 経由である（クラウド送信なし）。
-- 静的ホスティング環境（GitHub Pages 等）でもフロントが動作する構成である。
-- 既存アプリの構成を大きく変更していない。
+- The Local Agent starts and `/health` returns `ok`.
+- The terminal renders inside the web UI and accepts keyboard input.
+- Claude Code output is displayed.
+- Resize is reflected in the terminal.
+- It auto-reconnects when the Local Agent restarts.
+- All communication goes through the Local Agent (no cloud transfer).
+- The frontend works even on static hosting (e.g. GitHub Pages).
+- The existing app's structure is not significantly changed.
 
-> UI の変更後にブラウザを自動で開いて確認しない。動作確認は Local Agent の `/health` と、ユーザーによる手動確認（`assets/docs-templates/setup.md` の手順）に委ねる。
+> Verify via the Local Agent's `/health` and the manual steps in `assets/docs-templates/setup.md`. Do not auto-launch a browser to check UI changes.

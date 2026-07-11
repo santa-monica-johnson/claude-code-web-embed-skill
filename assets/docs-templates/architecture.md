@@ -36,12 +36,20 @@ A design reference for developers. It summarizes the structure, communication fl
 
 ### Local Agent (local-agent/)
 
-- `index.js`: entry point. Loads config, starts the server, handles shutdown.
-- `server.js`: serves HTTP (`/health`, `/status`) and WebSocket (`/terminal`). Creates a PTY session per connection.
-- `pty-manager.js`: creation, I/O, resize, and termination of PTY sessions via node-pty.
-- `claude-launcher.js`: builds the Claude Code launch spec (command, args, env) and checks availability.
-- `security.js`: Origin validation and constant-time token comparison.
-- `config.js`: resolves settings from environment variables / `.env`.
+The agent is **implementation-selectable**: `node/` (Node 18+) and `python/`
+(Python 3.8+) ship ready-made, and any language can be added by implementing the
+language-neutral protocol (see the skill's `references/protocol.md`). All
+implementations behave identically. Every implementation provides:
+
+- **Entry / server**: HTTP (`/health`, `/status`) + WebSocket (`/terminal`); creates a PTY session per connection.
+- **PTY management**: create, I/O, resize, and terminate the PTY.
+- **Claude launcher**: build the launch spec (command, args, env) and check availability.
+- **Security**: Origin validation + constant-time token comparison.
+- **Config**: resolve settings from environment variables / `.env` (identical variable names across implementations).
+
+Node splits these into `index.js` / `server.js` / `pty-manager.js` /
+`claude-launcher.js` / `security.js` / `config.js`; Python keeps them in
+`agent.py`. Same contract either way.
 
 ## Communication flow
 

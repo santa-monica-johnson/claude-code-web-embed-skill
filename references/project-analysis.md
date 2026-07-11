@@ -1,39 +1,42 @@
-# フレームワーク別 早見表
+# Framework quick-reference
 
-Step 1 の判定と Step 3 の統合先を素早く決めるための対応表。**既定は常に iframe 方式**。React/Vue ラッパーは密結合が明確に必要なときだけ。
+For quickly deciding Step 1's analysis and Step 3's integration point. **The
+default is always the iframe method.** Use the React/Vue wrappers only when tight
+coupling is clearly needed. The Local Agent language (node/python/…) is chosen
+separately and is independent of the frontend framework.
 
-## 判定
+## Detection
 
-| 手掛かり | フレームワーク | 静的配信先 | `embed.js` 読み込み位置 |
+| Signal | Framework | Static serve dir | Where to load `embed.js` |
 | --- | --- | --- | --- |
-| `next.config.*` | Next.js | `public/` | `pages/_app.tsx` または `app/layout.tsx`（`next/script`） |
-| `react` + Vite | React (Vite) | `public/` | `src/main.tsx` か `index.html` |
-| `nuxt.config.*` | Nuxt | `public/`（v3）/`static/`（v2） | `app.vue` またはプラグイン |
-| `vue` + Vite | Vue (Vite) | `public/` | `src/main.ts` か `index.html` |
+| `next.config.*` | Next.js | `public/` | `pages/_app.tsx` or `app/layout.tsx` (`next/script`) |
+| `react` + Vite | React (Vite) | `public/` | `src/main.tsx` or `index.html` |
+| `nuxt.config.*` | Nuxt | `public/` (v3) / `static/` (v2) | `app.vue` or a plugin |
+| `vue` + Vite | Vue (Vite) | `public/` | `src/main.ts` or `index.html` |
 | `svelte.config.*` | SvelteKit | `static/` | `src/routes/+layout.svelte` |
-| `astro.config.*` | Astro | `public/` | 共通レイアウトの `<body>` 末尾 |
-| `vite.config.*` のみ | Vite (Vanilla) | `public/` | `index.html` |
-| `package.json` 無し | 静的サイト | ルート／任意 | `index.html` の `</body>` 直前 |
+| `astro.config.*` | Astro | `public/` | end of the shared layout `<body>` |
+| `vite.config.*` only | Vite (Vanilla) | `public/` | `index.html` |
+| no `package.json` | static site | root / anywhere | just before `</body>` in `index.html` |
 
-## パッケージマネージャー
+## Package manager
 
-| ロックファイル | コマンド |
+| Lockfile | Commands |
 | --- | --- |
 | `package-lock.json` | `npm install` / `npm run` |
 | `yarn.lock` | `yarn` / `yarn` |
 | `pnpm-lock.yaml` | `pnpm install` / `pnpm` |
 | `bun.lockb` | `bun install` / `bun run` |
 
-## 配置の原則
+## Placement principles
 
-- iframe 資産（`claude-terminal.{html,css,js}`）は**そのままの相対参照で動く**単位。静的配信先の 1 ディレクトリ（例 `public/claude-embed/`）にまとめて置く。
-- `embed.js` は同じディレクトリに置き、ホストページから 1 箇所読み込む。
-- React/Vue ラッパーを使う場合も iframe 資産は静的配信先に必要（実体が iframe のため）。
-- Local Agent は静的配信物に含めない。ユーザーの PC でローカル起動する。
+- The iframe assets (`claude-terminal.{html,css,js}`) form a unit that **works with plain relative references**. Put them together in one static-serve directory (e.g. `public/claude-embed/`).
+- Put `embed.js` in the same directory and load it once from the host page.
+- Even when using the React/Vue wrapper, the iframe assets are still needed on the static serve path (the implementation is the iframe).
+- The Local Agent is not part of the static bundle. It runs locally on the user's machine. Its language (node/python/…) does not affect the frontend.
 
-## 静的ホスティング（GitHub Pages 等）
+## Static hosting (GitHub Pages, etc.)
 
-- フロント資産は静的配信でそのまま動作する。
-- `agentUrl` は `ws://127.0.0.1:4820`（ユーザーのローカル Agent）。デプロイ URL ではない。
-- デプロイ先 Origin（`https://<user>.github.io` 等）を `CLAUDE_AGENT_ALLOWED_ORIGINS` に追加する。
-- base path があるサブパス配信では `iframeSrc` をその base 込みで指定する。
+- Frontend assets work as-is on static hosting.
+- `agentUrl` is `ws://127.0.0.1:4820` (the user's local agent), not the deploy URL.
+- Add the deploy origin (`https://<user>.github.io`, …) to `CLAUDE_AGENT_ALLOWED_ORIGINS`.
+- For a sub-path deploy with a base path, set `iframeSrc` including that base.

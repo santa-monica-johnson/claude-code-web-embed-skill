@@ -6,51 +6,50 @@ This directory contains everything needed to integrate a **locally running Claud
 
 ```
 Web UI (xterm.js terminal)
-        │ WebSocket
+        │ WebSocket (language-neutral JSON protocol)
         ▼
-Local Agent (WebSocket + PTY)
+Local Agent (WebSocket + PTY)   ← choose an implementation: Node or Python
         │
         ▼
 Claude Code CLI (existing)
 ```
 
-The Web UI connects to the Local Agent over WebSocket, and the Local Agent launches Claude Code inside a pseudo-terminal (PTY). Claude Code's output, input, and resize events are all relayed over WebSocket.
+The Web UI connects to the Local Agent over WebSocket, and the Local Agent launches Claude Code inside a pseudo-terminal (PTY). Output, input, and resize events are relayed over WebSocket. The frontend is identical regardless of which agent implementation you run.
 
 ## Requirements
 
-- Node.js 18 or later
-- Claude Code CLI installed locally (the `claude` command)
-- A logged-in Claude Code session
+- **Node implementation**: Node.js 18+
+- **Python implementation**: Python 3.8+
+- Claude Code CLI installed locally (the `claude` command), logged in
 
-## Install
+## Install & start
+
+Run **one** implementation.
+
+### Node
 
 ```bash
-cd claude-embed/local-agent
+cd local-agent/node
 npm install
-```
-
-`node-pty` is a native module, so some environments require build tools (macOS: Xcode Command Line Tools; Linux: build-essential/python3; Windows: windows-build-tools).
-
-## Start
-
-```bash
-# Start the Local Agent (you can specify the working directory)
-cd claude-embed/local-agent
 CLAUDE_AGENT_CWD="/path/to/your/project" npm start
 ```
 
-Set the **session token** printed in the startup log into the frontend. Start the Web UI the way your existing app normally starts (see `setup.md`).
+`node-pty` is a native module, so some environments need build tools (macOS: Xcode Command Line Tools; Linux: build-essential/python3; Windows: windows-build-tools).
 
-## Usage
+### Python
 
-1. Start the Local Agent.
-2. Open your existing web app. A Claude Code terminal panel appears at the bottom of the screen.
-3. Type into the panel; your local Claude Code responds.
-4. Use the header controls to open/close, reconnect, or go full screen.
+```bash
+cd local-agent/python
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+CLAUDE_AGENT_CWD="/path/to/your/project" python3 agent.py
+```
+
+Either way, set the **session token** printed in the startup log into the frontend, and start the Web UI the way your existing app normally starts (see `setup.md`).
 
 ## Configuration
 
-Configure the Local Agent via `.env` (or environment variables). See `.env.example`.
+Configure via `.env` (or environment variables); the variable names are identical across implementations. See `.env.example`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
@@ -76,6 +75,12 @@ Claude Code and local files are never sent to the cloud. Even if you host the fr
 
 Because it uses the iframe approach, it works with React / Next.js / Vue / Nuxt / Svelte / Astro / Vite / Vanilla JS. Thin component wrappers for React and Vue are also included.
 
+## Adding another agent language
+
+The frontend and agent talk over a small language-neutral protocol, so you can add
+a Go/Rust/Ruby/… implementation without touching the frontend. See the protocol
+and porting guide bundled with the skill (`references/protocol.md`).
+
 ## Troubleshooting
 
 | Symptom | Fix |
@@ -85,7 +90,7 @@ Because it uses the iframe approach, it works with React / Next.js / Vue / Nuxt 
 | `403 Forbidden` | Add the Web UI's origin to `CLAUDE_AGENT_ALLOWED_ORIGINS` |
 | "Failed to launch Claude Code" | Verify `claude` is on your PATH and logged in |
 | Port-in-use error | Change `CLAUDE_AGENT_PORT` |
-| `node-pty` build failure | Install build tools and re-run `npm install` |
-| `posix_spawnp failed.` (macOS) | The bundled `spawn-helper` lost its execute bit. Restore it with `chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper` (or `build/Release/spawn-helper` for a built version) and re-run |
+| `node-pty` build failure (Node) | Install build tools and re-run `npm install` |
+| `posix_spawnp failed.` (Node, macOS) | The bundled `spawn-helper` lost its execute bit. Restore it with `chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper` (or `build/Release/spawn-helper` for a built version) and re-run. (Not applicable to the Python implementation.) |
 
 See `setup.md` for setup details and `architecture.md` for the design.
