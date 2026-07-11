@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import pty
+import re
 import secrets
 import shutil
 import signal
@@ -23,7 +24,7 @@ import struct
 import subprocess
 import termios
 from dataclasses import dataclass
-from typing import List, Set
+from typing import List
 from urllib.parse import urlsplit, parse_qs
 
 from websockets.asyncio.server import serve
@@ -76,6 +77,8 @@ class Config:
     claude_command: str
     claude_args: List[str]
     max_sessions: int
+    session_grace_seconds: float
+    scrollback_chars: int
 
 
 def load_config() -> Config:
@@ -93,6 +96,8 @@ def load_config() -> Config:
         claude_command=env.get("CLAUDE_AGENT_COMMAND", "claude"),
         claude_args=[a for a in (env.get("CLAUDE_AGENT_ARGS") or "").split(" ") if a],
         max_sessions=int(env.get("CLAUDE_AGENT_MAX_SESSIONS", "4") or 4),
+        session_grace_seconds=int(env.get("CLAUDE_AGENT_SESSION_GRACE_MS", "120000") or 120000) / 1000.0,
+        scrollback_chars=int(env.get("CLAUDE_AGENT_SCROLLBACK_CHARS", "200000") or 200000),
     )
 
 
@@ -126,6 +131,19 @@ def claude_available(command: str) -> bool:
     return shutil.which(command) is not None
 
 
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def sanitize_session_id(raw):
+    """クライアント指定の再接続キーの形式検証。認可情報ではない
+    （token は引き続き必須）。想定外の形式・長さだけ弾く。"""
+    return raw if isinstance(raw, str) and _SESSION_ID_RE.match(raw) else None
+
+
+def generate_session_id() -> str:
+    return "sess-" + secrets.token_hex(12)
+
+
 # ---------------------------------------------------------------------------
 # PTY セッション
 # ---------------------------------------------------------------------------
@@ -145,9 +163,16 @@ def set_winsize(fd: int, cols, rows) -> None:
 
 
 class PtySession:
-    """1 つの PTY セッション（＝1 つの Claude Code プロセス）。"""
+    """1 つの PTY セッション（＝1 つの Claude Code プロセス）。
 
-    def __init__(self, command, args, cwd, env, cols, rows):
+    WebSocket 接続の寿命とは独立して生存する。attach/detach で「現在どの
+    接続に出力を届けるか」を切り替えられるため、ブラウザのリロードや瞬断が
+    あっても Claude Code プロセス自体は生き続け、再接続時に同じセッションへ
+    再アタッチしてスクロールバックを復元できる（agent.py 側で制御）。
+    読み取り・出力配送は生成時に自前で開始する（特定の connection に依存しない）。
+    """
+
+    def __init__(self, command, args, cwd, env, cols, rows, scrollback_chars=200000):
         self.master_fd, slave_fd = pty.openpty()
         # 起動に失敗しても openpty の fd を必ず解放する（例: claude 未検出で Popen が例外）。
         try:
@@ -170,6 +195,78 @@ class PtySession:
         os.set_blocking(self.master_fd, False)
         self.pid = self.proc.pid
         self._closed = False
+        self.current_connection = None
+        self._scrollback_chars = scrollback_chars
+        self._buffer = ""
+        self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        self._exit_callbacks = []
+        self._loop = asyncio.get_running_loop()
+        self._out_queue: asyncio.Queue = asyncio.Queue()
+        self._loop.add_reader(self.master_fd, self._on_readable)
+        self._pump_task = asyncio.create_task(self._pump())
+
+    def _on_readable(self):
+        try:
+            data = os.read(self.master_fd, 65536)
+        except OSError:
+            data = b""
+        self._out_queue.put_nowait(data if data else None)
+        if not data:
+            try:
+                self._loop.remove_reader(self.master_fd)
+            except (OSError, ValueError):
+                pass
+
+    async def _pump(self):
+        while True:
+            data = await self._out_queue.get()
+            if data is None:  # EOF = プロセス終了
+                code = self.proc.poll()
+                if code is None:
+                    code = await self._loop.run_in_executor(None, self.proc.wait)
+                self._closed = True
+                for cb in list(self._exit_callbacks):
+                    await cb(code)
+                return
+            text = self._decoder.decode(data)
+            self._append_buffer(text)
+            if self.current_connection is not None:
+                await send_msg(self.current_connection, {"type": "output", "data": text})
+
+    def on_exit(self, cb) -> None:
+        self._exit_callbacks.append(cb)
+
+    def _append_buffer(self, text: str) -> None:
+        self._buffer += text
+        limit = self._scrollback_chars
+        if len(self._buffer) > limit:
+            self._buffer = self._buffer[-limit:]
+
+    def get_buffer(self) -> str:
+        return self._buffer
+
+    async def attach(self, connection) -> None:
+        """connection を現在の出力先にする。既に別の接続がアタッチ中なら、
+        理由を通知したうえで切断する（1 つの PTY に同時アタッチできるのは 1 接続のみ）。
+
+        新しい接続を「先に」current_connection へ確定させてから、旧接続を await で
+        閉じる。逆順にすると、await previous.close() がイベントループへ制御を返す
+        隙に旧接続側の finally（detach）が先に走り、current_connection がまだ旧接続の
+        ままなので誤って None にされ、「誰もアタッチしていない」と判定されて
+        使用中のセッションに猶予キルが仕掛けられてしまう（実際に発生した競合状態）。
+        """
+        previous = self.current_connection
+        self.current_connection = connection
+        if previous is not None and previous is not connection:
+            await send_msg(previous, {"type": "status", "state": "replaced"})
+            try:
+                await previous.close()
+            except Exception:
+                pass
+
+    def detach(self, connection) -> None:
+        if self.current_connection is connection:
+            self.current_connection = None
 
     def write(self, data) -> None:
         if self._closed:
@@ -192,6 +289,11 @@ class PtySession:
         if self._closed:
             return
         self._closed = True
+        try:
+            self._loop.remove_reader(self.master_fd)
+        except (OSError, ValueError):
+            pass
+        self._pump_task.cancel()
         try:
             os.killpg(os.getpgid(self.pid), signal.SIGTERM)
         except (ProcessLookupError, OSError):
@@ -218,7 +320,7 @@ def json_response(status: int, body: dict, origin, config: Config) -> Response:
     return Response(status, reason, headers, payload)
 
 
-def make_process_request(config: Config, sessions: Set):
+def make_process_request(config: Config, sessions: dict):
     """アップグレード前に HTTP 応答と WS の認可を行う。"""
 
     def process_request(connection, request):
@@ -260,7 +362,10 @@ def make_process_request(config: Config, sessions: Set):
             token = parse_qs(split.query).get("token", [None])[0]
             if not token or not safe_compare(token, config.session_token):
                 return connection.respond(401, "Unauthorized")
-            if len(sessions) >= config.max_sessions:
+            # 既存セッションへの再接続は新規プロセスを作らないため、上限カウントに含めない。
+            requested_id = sanitize_session_id(parse_qs(split.query).get("session", [None])[0])
+            will_reattach = requested_id is not None and requested_id in sessions
+            if not will_reattach and len(sessions) >= config.max_sessions:
                 return connection.respond(503, "Service Unavailable")
             return None  # 認可 OK → WS ハンドシェイクへ進む
 
@@ -276,8 +381,13 @@ async def send_msg(connection, obj: dict) -> None:
         pass
 
 
-def make_handler(config: Config, sessions: Set):
-    """認可済みの /terminal 接続を処理する。"""
+def make_handler(config: Config, sessions: dict):
+    """認可済みの /terminal 接続を処理する。
+
+    sessions は session_id -> {"pty": PtySession, "grace_task": asyncio.Task|None}。
+    同じ session_id で再接続した場合は新しい claude プロセスを起動せず、既存 PTY に
+    再アタッチしてスクロールバックを再送する。
+    """
 
     async def handler(connection):
         split = urlsplit(connection.request.path)
@@ -287,62 +397,68 @@ def make_handler(config: Config, sessions: Set):
         query = parse_qs(split.query)
         cols = sanitize_dim(query.get("cols", [80])[0], 80)
         rows = sanitize_dim(query.get("rows", [24])[0], 24)
+        requested_id = sanitize_session_id(query.get("session", [None])[0])
+        session_id = requested_id or generate_session_id()
 
-        env = dict(os.environ)
-        env["TERM"] = "xterm-256color"
-        env["COLORTERM"] = "truecolor"
-
-        try:
-            session = PtySession(
-                config.claude_command, config.claude_args, config.working_dir, env, cols, rows
-            )
-        except Exception as exc:  # noqa: BLE001 - 起動失敗はクライアントへ通知
+        entry = sessions.get(session_id)
+        if entry is not None:
+            # 再接続: 既存 PTY（＝既存の claude プロセス）に再アタッチする。
+            grace_task = entry.get("grace_task")
+            if grace_task is not None:
+                grace_task.cancel()
+                entry["grace_task"] = None
+            pty_session = entry["pty"]
+            await pty_session.attach(connection)
             await send_msg(
                 connection,
-                {"type": "error", "message": f"Failed to launch Claude Code: {exc}"},
+                {"type": "status", "state": "connected", "pid": pty_session.pid,
+                 "sessionId": session_id, "resumed": True},
             )
-            return
-
-        sessions.add(connection)
-        loop = asyncio.get_running_loop()
-        out_queue: asyncio.Queue = asyncio.Queue()
-        fd = session.master_fd
-
-        await send_msg(connection, {"type": "status", "state": "connected", "pid": session.pid})
-
-        # PTY -> キュー（読み取りは loop のリーダーで非ブロッキングに）
-        def on_readable():
+            buffered = pty_session.get_buffer()
+            if buffered:
+                await send_msg(connection, {"type": "output", "data": buffered})
+            pty_session.resize(cols, rows)
+        else:
+            env = dict(os.environ)
+            env["TERM"] = "xterm-256color"
+            env["COLORTERM"] = "truecolor"
             try:
-                data = os.read(fd, 65536)
-            except OSError:
-                data = b""
-            out_queue.put_nowait(data if data else None)
-            if not data:
-                try:
-                    loop.remove_reader(fd)
-                except (OSError, ValueError):
-                    pass
+                pty_session = PtySession(
+                    config.claude_command, config.claude_args, config.working_dir, env,
+                    cols, rows, config.scrollback_chars,
+                )
+            except Exception as exc:  # noqa: BLE001 - 起動失敗はクライアントへ通知
+                await send_msg(
+                    connection,
+                    {"type": "error", "message": f"Failed to launch Claude Code: {exc}"},
+                )
+                return
 
-        loop.add_reader(fd, on_readable)
+            entry = {"pty": pty_session, "grace_task": None}
+            sessions[session_id] = entry
+            await pty_session.attach(connection)
+            await send_msg(
+                connection,
+                {"type": "status", "state": "connected", "pid": pty_session.pid,
+                 "sessionId": session_id, "resumed": False},
+            )
 
-        # キュー -> WS（順序保持。マルチバイト境界のため逐次デコーダを使用）
-        decoder = codecs.getincrementaldecoder("utf-8")("replace")
-
-        async def pump():
-            while True:
-                data = await out_queue.get()
-                if data is None:  # EOF = プロセス終了
-                    code = session.proc.poll()
-                    if code is None:
-                        code = await loop.run_in_executor(None, session.proc.wait)
+            async def on_exit(exit_code):
+                if pty_session.current_connection is not None:
                     await send_msg(
-                        connection, {"type": "exit", "exitCode": code, "signal": None}
+                        pty_session.current_connection,
+                        {"type": "exit", "exitCode": exit_code, "signal": None},
                     )
-                    await connection.close()
-                    return
-                await send_msg(connection, {"type": "output", "data": decoder.decode(data)})
+                    try:
+                        await pty_session.current_connection.close()
+                    except Exception:
+                        pass
+                pending = sessions.get(session_id, {}).get("grace_task")
+                if pending is not None:
+                    pending.cancel()
+                sessions.pop(session_id, None)
 
-        pump_task = asyncio.create_task(pump())
+            pty_session.on_exit(on_exit)
 
         try:
             async for raw in connection:
@@ -352,19 +468,28 @@ def make_handler(config: Config, sessions: Set):
                     continue
                 mtype = msg.get("type")
                 if mtype == "input" and isinstance(msg.get("data"), str):
-                    session.write(msg["data"])
+                    pty_session.write(msg["data"])
                 elif mtype == "resize":
-                    session.resize(msg.get("cols"), msg.get("rows"))
+                    pty_session.resize(msg.get("cols"), msg.get("rows"))
                 elif mtype == "ping":
                     await send_msg(connection, {"type": "pong"})
         finally:
-            try:
-                loop.remove_reader(fd)
-            except (OSError, ValueError):
-                pass
-            pump_task.cancel()
-            session.close()
-            sessions.discard(connection)
+            pty_session.detach(connection)
+            live_entry = sessions.get(session_id)
+            # takeover（別接続が同じセッションへ先に再接続済み）の場合、detach() は
+            # no-op になり pty_session.current_connection は新しい接続のままになる。
+            # その場合ここで猶予タイマーを仕掛けると、使用中のセッションを後から
+            # 誤って kill してしまうため、本当に誰もアタッチしていない時だけ行う。
+            if live_entry is not None and pty_session.current_connection is None:
+                async def grace_kill():
+                    try:
+                        await asyncio.sleep(config.session_grace_seconds)
+                    except asyncio.CancelledError:
+                        return
+                    pty_session.close()
+                    sessions.pop(session_id, None)
+
+                live_entry["grace_task"] = asyncio.create_task(grace_kill())
 
     return handler
 
@@ -373,7 +498,7 @@ async def amain() -> None:
     here = os.path.dirname(os.path.abspath(__file__))
     load_dotenv(os.path.join(here, ".env"))
     config = load_config()
-    sessions: Set = set()
+    sessions: dict = {}  # session_id -> {"pty": PtySession, "grace_task": asyncio.Task|None}
 
     logging.getLogger("websockets.server").addFilter(_SuppressIntentionalHTTP())
 
@@ -409,6 +534,14 @@ async def amain() -> None:
     async with serve(handler, config.host, config.port, process_request=process_request):
         await stop.wait()
         print("\nShutting down...")
+        # 猶予期間を待たず、生存中の全 PTY(claude プロセス)を即終了する。
+        # このプロセス自体が終わるため、猶予後の再アタッチは起こり得ない。
+        for entry in list(sessions.values()):
+            grace_task = entry.get("grace_task")
+            if grace_task is not None:
+                grace_task.cancel()
+            entry["pty"].close()
+        sessions.clear()
 
 
 def main() -> None:

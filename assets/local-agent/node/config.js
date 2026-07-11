@@ -68,6 +68,15 @@ function loadConfig(env = process.env) {
   const maxSessions =
     Number.parseInt(env.CLAUDE_AGENT_MAX_SESSIONS || '4', 10) || 4;
 
+  // WebSocket 切断後、PTY(claude プロセス)を維持する猶予時間。
+  // この間に同じ session id で再接続すれば、プロセスを再起動せず再アタッチする。
+  const sessionGraceMs =
+    Number.parseInt(env.CLAUDE_AGENT_SESSION_GRACE_MS || '120000', 10) || 120000;
+
+  // 再接続時に画面を復元するためのスクロールバック上限（文字数）。
+  const scrollbackChars =
+    Number.parseInt(env.CLAUDE_AGENT_SCROLLBACK_CHARS || '200000', 10) || 200000;
+
   return {
     host,
     port,
@@ -77,6 +86,8 @@ function loadConfig(env = process.env) {
     claudeCommand,
     claudeArgs,
     maxSessions,
+    sessionGraceMs,
+    scrollbackChars,
   };
 }
 

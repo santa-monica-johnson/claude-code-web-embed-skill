@@ -11,9 +11,47 @@
  *   1. URL クエリ  ?agent=ws://127.0.0.1:4820&token=xxxx
  *   2. 親からの postMessage  { type: 'claude-embed-config', agentUrl, token }
  *   トークンを URL に載せたくない場合は 2 を使う（embed.js の既定）。
+ *
+ * セッションの継続（ブラウザのリロードに影響されない）:
+ *   接続のたびに sessionStorage 由来の固定 session id を送る。Local Agent は
+ *   これを使って、同じ claude プロセスに再アタッチする（プロセスを再起動しない）。
+ *   sessionStorage はタブを閉じると消えるが、リロードでは保持されるため、
+ *   「リロードしてもセッションは続くが、タブを閉じたら新しいセッションになる」
+ *   という直感的な挙動になる。
  */
 (function () {
   'use strict';
+
+  var SESSION_ID_KEY = 'claudeTerminalSessionId';
+
+  function getOrCreateSessionId() {
+    var id = null;
+    try {
+      id = window.sessionStorage.getItem(SESSION_ID_KEY);
+    } catch (e) {
+      /* sessionStorage が使えない環境（プライベートモード等）では毎回新規セッションになる */
+    }
+    if (!id) {
+      id =
+        window.crypto && window.crypto.randomUUID
+          ? window.crypto.randomUUID()
+          : 'sess-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+      try {
+        window.sessionStorage.setItem(SESSION_ID_KEY, id);
+      } catch (e) {
+        /* 保存できなくても接続自体は続行する */
+      }
+    }
+    return id;
+  }
+
+  function saveSessionId(id) {
+    try {
+      window.sessionStorage.setItem(SESSION_ID_KEY, id);
+    } catch (e) {
+      /* noop */
+    }
+  }
 
   var term = new window.Terminal({
     fontFamily: 'Menlo, Monaco, "DejaVu Sans Mono", "Courier New", monospace',
@@ -39,6 +77,7 @@
   var reconnectTimer = null;
   var manualClose = false;
   var resizeTimer = null;
+  var sessionId = getOrCreateSessionId();
 
   // URL クエリから初期設定を読む。
   var params = new URLSearchParams(window.location.search);
@@ -69,6 +108,7 @@
     var u = new URL(config.agentUrl);
     u.pathname = '/terminal';
     u.searchParams.set('token', config.token || '');
+    u.searchParams.set('session', sessionId);
     var dims = currentDims();
     u.searchParams.set('cols', String(dims.cols));
     u.searchParams.set('rows', String(dims.rows));
@@ -119,6 +159,17 @@
         term.write('\r\n\x1b[31m' + msg.message + '\x1b[0m\r\n');
         setStatus('error', msg.message);
       } else if (msg.type === 'status') {
+        // サーバが確定した session id を反映する（通常は自分が送った id と同じ）。
+        if (msg.sessionId && msg.sessionId !== sessionId) {
+          sessionId = msg.sessionId;
+          saveSessionId(sessionId);
+        }
+        if (msg.state === 'replaced') {
+          // 別タブ／別ウィンドウが同じセッションに再接続してきたため、こちら側は
+          // 意図的な切断として扱う（自動再接続すると奪い合いの無限ループになるため）。
+          manualClose = true;
+          term.write('\r\n\x1b[33m[session opened in another tab/window]\x1b[0m\r\n');
+        }
         setStatus(msg.state);
       }
     };

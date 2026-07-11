@@ -19,15 +19,16 @@ not be removed — regardless of the implementation language.
    - Required on every WebSocket connection; mismatch → `401`.
    - Compare in **constant time** (e.g. `crypto.timingSafeEqual` / `secrets.compare_digest`; length mismatch → immediate false) to resist timing attacks.
    - Randomly generated per start by default; fix with `CLAUDE_AGENT_TOKEN`.
+   - The optional `session` reconnection id (see `protocol.md`) is **not** a credential — it only selects which PTY to reattach to. It must never bypass the token check above; validate its format (`^[A-Za-z0-9_-]{1,128}$`) to keep it from being used as a memory-exhaustion vector, nothing more.
 
 4. **Working-directory scoping**
    - Claude Code launches in `CLAUDE_AGENT_CWD` (default: the agent's cwd).
    - Do not make an unexpectedly broad tree the working target; scope it to the use case.
 
 5. **Child-process management**
-   - Kill the PTY process reliably when the WebSocket closes (kill the process group).
-   - On shutdown, disconnect all connections and terminate PTYs.
-   - Bound runaway usage with a concurrent-session cap (`CLAUDE_AGENT_MAX_SESSIONS`).
+   - Kill the PTY process reliably when the WebSocket closes **and the reattachment grace period elapses** (`CLAUDE_AGENT_SESSION_GRACE_MS`) with nobody reattached — see `protocol.md` for the reattachment design. A closed socket must not leave the process running forever.
+   - On shutdown, kill all PTYs immediately, bypassing any pending grace-period timers.
+   - Bound runaway usage with a concurrent-session cap (`CLAUDE_AGENT_MAX_SESSIONS`); reattaching to an existing session must not consume additional capacity.
 
 6. **No arbitrary-shell API**
    - Provide only "launch Claude Code on a PTY and relay".
@@ -47,6 +48,7 @@ After generating or changing an implementation, verify at least the following
 
 - Both Origin and token are validated before upgrade.
 - Token comparison is constant-time.
-- The PTY is killed on socket close and on error (no leaks).
-- External input (terminal dimensions, etc.) is sanitized to integers within range.
+- The PTY is eventually killed after socket close (once the grace period elapses) and on error (no leaks), and unconditionally on agent shutdown.
+- External input (terminal dimensions, session id, etc.) is sanitized/bounded.
 - The default bind is loopback.
+- A "takeover" (second connection reattaching to an in-use session) does not let the displaced connection's own cleanup schedule a kill for the session that is still actively attached elsewhere.

@@ -38,6 +38,7 @@ const STATUS_LABEL = {
   error: 'Error',
   unconfigured: 'Not configured',
   'waiting-config': 'Waiting for config',
+  replaced: 'Opened elsewhere',
 };
 
 export default {

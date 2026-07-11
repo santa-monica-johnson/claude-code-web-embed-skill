@@ -47,6 +47,20 @@ CLAUDE_AGENT_CWD="/path/to/your/project" python3 agent.py
 
 Either way, set the **session token** printed in the startup log into the frontend, and start the Web UI the way your existing app normally starts (see `setup.md`).
 
+## Session persistence
+
+Reloading the page (or a brief network drop) does **not** restart Claude Code.
+The frontend keeps a small session id in the browser's `sessionStorage` (cleared
+when the tab closes, but kept across a reload) and reconnects with it; the Local
+Agent reattaches to the still-running Claude Code process instead of launching a
+new one, and replays recent output so the screen looks the same as before. If
+nothing reattaches within `CLAUDE_AGENT_SESSION_GRACE_MS` (default 2 minutes,
+e.g. the tab was closed for good), the process is terminated.
+
+Opening the same page in a second tab takes over that session (the first tab
+is disconnected, not duplicated) — this mirrors how a single `tmux`/`screen`
+session can only be attached from one place at a time.
+
 ## Configuration
 
 Configure via `.env` (or environment variables); the variable names are identical across implementations. See `.env.example`.
@@ -60,6 +74,8 @@ Configure via `.env` (or environment variables); the variable names are identica
 | `CLAUDE_AGENT_TOKEN` | randomly generated | Session token |
 | `CLAUDE_AGENT_COMMAND` | `claude` | Launch command |
 | `CLAUDE_AGENT_MAX_SESSIONS` | `4` | Max concurrent sessions |
+| `CLAUDE_AGENT_SESSION_GRACE_MS` | `120000` | How long a disconnected session survives, waiting for reattachment |
+| `CLAUDE_AGENT_SCROLLBACK_CHARS` | `200000` | Buffered output replayed on reattach |
 
 ## Security
 

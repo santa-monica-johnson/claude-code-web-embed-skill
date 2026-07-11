@@ -50,6 +50,7 @@
     error: 'Error',
     unconfigured: 'Not configured',
     'waiting-config': 'Waiting for config',
+    replaced: 'Opened elsewhere',
   };
   var STATUS_COLOR = {
     connected: '#3fb950',
@@ -59,6 +60,7 @@
     error: '#f85149',
     unconfigured: '#f85149',
     'waiting-config': '#d29922',
+    replaced: '#d29922',
   };
 
   function injectStyles() {

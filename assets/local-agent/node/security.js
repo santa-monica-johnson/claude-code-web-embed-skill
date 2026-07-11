@@ -40,4 +40,12 @@ function isOriginAllowed(origin, allowedOrigins) {
   return host === '127.0.0.1' || host === '::1' || host === 'localhost';
 }
 
-module.exports = { safeCompare, isLoopbackHost, isOriginAllowed };
+// クライアントが指定するセッション再接続 ID の形式検証。
+// これは認可情報ではない（token が引き続き必須）。単に PTY 再アタッチ先を選ぶ
+// キーなので、想定外の形式・長さ（DoS/メモリ膨張の芽）だけ弾く。
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+function sanitizeSessionId(raw) {
+  return typeof raw === 'string' && SESSION_ID_PATTERN.test(raw) ? raw : null;
+}
+
+module.exports = { safeCompare, isLoopbackHost, isOriginAllowed, sanitizeSessionId };

@@ -68,6 +68,7 @@ After generating/integrating, confirm:
 - Claude Code output is displayed.
 - Resize is reflected in the terminal.
 - It auto-reconnects when the Local Agent restarts.
+- Reloading the page (or a brief network drop) reattaches to the same running Claude Code session (via the `session` id in `sessionStorage`) instead of restarting it, within the configured grace period.
 - All communication goes through the Local Agent (no cloud transfer).
 - The frontend works even on static hosting (e.g. GitHub Pages).
 - The existing app's structure is not significantly changed.

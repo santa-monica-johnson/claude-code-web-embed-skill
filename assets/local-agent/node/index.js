@@ -13,7 +13,7 @@ const { isLoopbackHost } = require('./security');
 loadDotenv(__dirname);
 
 const config = loadConfig();
-const { httpServer, wss } = createServer(config);
+const { httpServer, wss, killAllSessions } = createServer(config);
 
 httpServer.listen(config.port, config.host, () => {
   const base = `http://${config.host}:${config.port}`;
@@ -58,7 +58,9 @@ function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log('\nShutting down...');
-  // 接続中の WebSocket を切断（各 PTY は close ハンドラで kill される）。
+  // 猶予期間を待たず、生存中の全 PTY(claude プロセス)を即終了する。
+  // このプロセス自体が終わるため、猶予後の再アタッチは起こり得ない。
+  killAllSessions();
   for (const client of wss.clients) {
     try {
       client.terminate();

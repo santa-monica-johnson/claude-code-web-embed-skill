@@ -76,6 +76,18 @@ A terminal needs a low-latency, bidirectional stream. HTTP request/response is a
 
 It is framework-agnostic and works as-is on static hosting (e.g. GitHub Pages). It integrates with minimal changes to the existing app. When React/Vue is needed, use the bundled wrappers.
 
+### Why sessions outlive the WebSocket
+
+A naive design ties the Claude Code process's lifetime to the WebSocket
+connection: close the socket, kill the process. That means every page reload
+or brief network drop throws away the running conversation. Instead, the PTY's
+lifetime is decoupled from any one connection (see `protocol.md`'s "Session
+persistence"): the agent keeps a `session id → PTY` map, holds a disconnected
+PTY alive for a grace period, and lets a reconnect with the same id reattach
+(replaying buffered scrollback) instead of relaunching. This is the same model
+`tmux`/`screen` use for detach/reattach, applied to a browser tab instead of a
+terminal multiplexer client.
+
 ## Security design
 
 Protected by two gates.
