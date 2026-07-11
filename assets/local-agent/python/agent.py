@@ -178,6 +178,19 @@ class PtySession:
         # 起動に失敗しても openpty の fd を必ず解放する（例: claude 未検出で Popen が例外）。
         try:
             set_winsize(self.master_fd, cols, rows)
+
+            def _make_ctty():
+                # start_new_session=True (setsid のみ) だと、子プロセスは新しいセッション
+                # リーダーにはなるが「制御端末」が設定されない。stdin 等は dup2 で
+                # slave_fd を渡しているだけなので、TIOCSCTTY を明示的に呼ばない限り
+                # slave 側の PTY が制御端末として登録されない。制御端末が無いと、
+                # resize(TIOCSWINSZ) をしても SIGWINCH がフォアグラウンドプロセス
+                # グループ(＝ Claude Code)に届かず、リサイズしても再描画されない
+                # （実機検証: resize 単独では出力がほぼ無い＝再描画されていない。
+                # Node 版(node-pty)は内部でこれを行っているため問題が出ない）。
+                os.setsid()
+                fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+
             self.proc = subprocess.Popen(
                 [command, *args],
                 stdin=slave_fd,
@@ -185,7 +198,7 @@ class PtySession:
                 stderr=slave_fd,
                 cwd=cwd,
                 env=env,
-                start_new_session=True,  # 子プロセスグループを分離しまとめて kill 可能に
+                preexec_fn=_make_ctty,  # setsid + 制御端末(TIOCSCTTY)の取得
                 close_fds=True,
             )
         except BaseException:
