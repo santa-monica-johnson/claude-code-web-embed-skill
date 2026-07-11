@@ -14,6 +14,7 @@ not be removed — regardless of the implementation language.
    - If `CLAUDE_AGENT_ALLOWED_ORIGINS` is set, allow only listed origins.
    - If unset, allow only `localhost` / `127.0.0.1` / `::1` origins.
    - A missing `Origin` header (non-browser local client) is allowed — it is not a CSRF vector.
+   - **`file://` pages**: a browser opening the frontend directly as a local file (e.g. double-clicking `index.html`) sends the literal `Origin: null` header, not an empty header. Because `"null"` fails URL parsing, it is **rejected by default** (`403`) even though it looks like a "local" page. To support this, add the literal string `null` to `CLAUDE_AGENT_ALLOWED_ORIGINS` — but note that setting this variable at all switches the allowlist from "auto-allow localhost family" to "explicit matches only", so also re-list any `http://localhost:PORT` origins you still need (e.g. `CLAUDE_AGENT_ALLOWED_ORIGINS=null,http://localhost:8000`). Also note `null` cannot be scoped to "this one file" — every `file://` page on the machine serializes to the same `null` origin, so allowing it means *any* local HTML file (not just yours) can attempt to connect (the session token is still required, so this doesn't grant access without it, but it does widen who can *try*).
 
 3. **Session token (the real authorization)**
    - Required on every WebSocket connection; mismatch → `401`.

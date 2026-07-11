@@ -104,6 +104,7 @@ and porting guide bundled with the skill (`references/protocol.md`).
 | Stuck on "unconfigured" | Check that `agentUrl` and `token` are passed to the frontend |
 | `401 Unauthorized` | Check that the token matches the value in the startup log |
 | `403 Forbidden` | Add the Web UI's origin to `CLAUDE_AGENT_ALLOWED_ORIGINS` |
+| `403 Forbidden` when opening the page via `file:///path/to/index.html` | Browsers send `Origin: null` for `file://` pages. Add the literal string `null` to `CLAUDE_AGENT_ALLOWED_ORIGINS` (and re-list any `http://localhost:PORT` origins you still need — see `.env.example`) |
 | "Failed to launch Claude Code" | Verify `claude` is on your PATH and logged in |
 | Port-in-use error | Change `CLAUDE_AGENT_PORT` |
 | `node-pty` build failure (Node) | Install build tools and re-run `npm install` |
