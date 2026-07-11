@@ -70,6 +70,17 @@ Node splits these into `index.js` / `server.js` / `pty-manager.js` /
 
 Claude Code has an interactive terminal UI (thinking display, permission dialogs, color, cursor control). An ordinary pipe would lose all of that, so it is launched on a pseudo-terminal (PTY) to preserve its original UI and behavior.
 
+A PTY alone isn't enough for correct resize behavior, though: the child process
+also needs the PTY set as its **controlling terminal**, or the `SIGWINCH`
+signal that a `TIOCSWINSZ` resize normally triggers never reaches it, and the
+terminal UI silently keeps rendering at the old size. Node's `node-pty`
+handles this internally. The Python implementation does it explicitly via
+`os.setsid()` + `TIOCSCTTY` in a `preexec_fn` — a plain
+`subprocess.Popen(..., start_new_session=True)` calls `setsid()` but never
+makes the PTY the controlling terminal, which is why an earlier version of the
+Python agent had panel resizes silently fail to redraw (fixed; see the
+`PtySession.__init__` comment in `agent.py`).
+
 ### Why WebSocket
 
 A terminal needs a low-latency, bidirectional stream. HTTP request/response is awkward for streaming output and key input, so all real-time communication is consolidated over WebSocket. HTTP is used only for health checks and status.

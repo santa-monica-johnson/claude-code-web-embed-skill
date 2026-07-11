@@ -20,6 +20,13 @@ else confirms them. Additional languages (Go, Rust, Ruby, …) can be added by
 following the porting guide in `references/protocol.md`; Go/Rust are the best
 choices when you want a single static binary.
 
+The Python implementation explicitly sets the PTY as the child's controlling
+terminal (`setsid()` + `TIOCSCTTY` in `preexec_fn`) so that resize signals
+(`SIGWINCH`) actually reach Claude Code — `subprocess.Popen`'s
+`start_new_session=True` alone does not do this, and without it a panel
+resize silently fails to redraw. This was found and fixed after Node's
+`node-pty` (which handles it internally) showed no such issue.
+
 Both also implement **session persistence**: a page reload or brief disconnect
 reattaches to the still-running Claude Code process instead of restarting it
 (see `../docs-templates/README.md`'s "Session persistence" section and
