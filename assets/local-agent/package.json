@@ -1,0 +1,21 @@
+{
+  "name": "claude-code-local-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ローカルにインストール済みの Claude Code CLI を Web UI へ橋渡しする Local Agent（WebSocket + PTY）。",
+  "type": "commonjs",
+  "main": "index.js",
+  "bin": {
+    "claude-local-agent": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  }
+}

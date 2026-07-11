@@ -1,0 +1,16 @@
+# 依存・ビルド成果物
+node_modules/
+
+# 環境変数・秘密
+.env
+.env.*
+!.env.example
+
+# ローカル/エディタ設定
+.claude/
+.vscode/
+.idea/
+
+# OS / ログ
+.DS_Store
+*.log
