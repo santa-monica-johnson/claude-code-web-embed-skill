@@ -105,7 +105,7 @@ function createServer(config) {
     } catch (err) {
       sendMsg(ws, {
         type: 'error',
-        message: `Claude Code の起動に失敗しました: ${err.message}`,
+        message: `Failed to launch Claude Code: ${err.message}`,
       });
       try {
         ws.close();

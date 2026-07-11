@@ -17,7 +17,7 @@
       <strong>{{ title }}</strong>
       <span class="claude-terminal__status">{{ statusLabel }}</span>
       <span class="claude-terminal__spacer" />
-      <button @click="reconnect">再接続</button>
+      <button @click="reconnect">Reconnect</button>
     </div>
     <iframe
       ref="frame"
@@ -31,13 +31,13 @@
 
 <script>
 const STATUS_LABEL = {
-  connected: '接続済み',
-  connecting: '接続中…',
-  disconnected: '切断',
-  exited: '終了',
-  error: 'エラー',
-  unconfigured: '未設定',
-  'waiting-config': '設定待ち',
+  connected: 'Connected',
+  connecting: 'Connecting…',
+  disconnected: 'Disconnected',
+  exited: 'Exited',
+  error: 'Error',
+  unconfigured: 'Not configured',
+  'waiting-config': 'Waiting for config',
 };
 
 export default {

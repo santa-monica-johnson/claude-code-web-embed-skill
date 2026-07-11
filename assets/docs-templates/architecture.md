@@ -1,85 +1,85 @@
-# アーキテクチャ
+# Architecture
 
-開発者向けの設計資料。Claude Code Web Embed の構成・通信フロー・設計判断をまとめる。
+A design reference for developers. It summarizes the structure, communication flow, and design decisions behind Claude Code Web Embed.
 
-## システム構成
+## System structure
 
 ```
 ┌──────────────────────────────┐
-│ 既存 Web インターフェース       │
+│ Existing web interface        │
 │  ┌────────────────────────┐  │
-│  │ Claude Code Terminal     │  │  ← xterm.js（iframe）
+│  │ Claude Code Terminal     │  │  ← xterm.js (iframe)
 │  └────────────────────────┘  │
 └──────────────┬───────────────┘
-               │ WebSocket（入力 / 出力 / リサイズ / 状態）
+               │ WebSocket (input / output / resize / status)
                ▼
 ┌──────────────────────────────┐
 │ Local Agent                   │
-│  • HTTP Server（health/status）│
+│  • HTTP Server (health/status)│
 │  • WebSocket Server            │
 │  • PTY Manager                 │
 │  • Claude Launcher             │
-│  • Security（Origin/Token/cwd）│
+│  • Security (Origin/Token/cwd) │
 └──────────────┬───────────────┘
-               │ 擬似端末（PTY）
+               │ pseudo-terminal (PTY)
                ▼
-         Claude Code CLI（既存）
+         Claude Code CLI (existing)
 ```
 
-## コンポーネントの責務
+## Component responsibilities
 
-### Web Interface（frontend/）
+### Web Interface (frontend/)
 
-- `claude-terminal.html` / `.js` / `.css`: iframe 内で動く端末本体。xterm.js を初期化し、Local Agent と WebSocket 接続する。
-- `embed.js`: 既存ページに読み込むフレームワーク非依存スクリプト。下部ドックパネル・操作 UI・iframe を生成し、`postMessage` で iframe を制御する。
-- `react/`, `vue/`: 各フレームワーク向けの薄いラッパー（実体は iframe）。
+- `claude-terminal.html` / `.js` / `.css`: the terminal itself, running inside the iframe. Initializes xterm.js and connects to the Local Agent over WebSocket.
+- `embed.js`: a framework-agnostic script loaded by the existing page. Builds the bottom-docked panel, the control UI, and the iframe, and controls the iframe via `postMessage`.
+- `react/`, `vue/`: thin wrappers for each framework (the actual implementation is the iframe).
 
-### Local Agent（local-agent/）
+### Local Agent (local-agent/)
 
-- `index.js`: エントリ。設定読込とサーバ起動、シャットダウン処理。
-- `server.js`: HTTP（`/health`, `/status`）と WebSocket（`/terminal`）を提供。接続ごとに PTY セッションを生成。
-- `pty-manager.js`: node-pty による PTY セッションの生成・入出力・リサイズ・終了。
-- `claude-launcher.js`: Claude Code の起動仕様（コマンド・引数・環境）を構築、可用性確認。
-- `security.js`: Origin 検証・トークン定数時間比較。
-- `config.js`: 環境変数 / `.env` からの設定解決。
+- `index.js`: entry point. Loads config, starts the server, handles shutdown.
+- `server.js`: serves HTTP (`/health`, `/status`) and WebSocket (`/terminal`). Creates a PTY session per connection.
+- `pty-manager.js`: creation, I/O, resize, and termination of PTY sessions via node-pty.
+- `claude-launcher.js`: builds the Claude Code launch spec (command, args, env) and checks availability.
+- `security.js`: Origin validation and constant-time token comparison.
+- `config.js`: resolves settings from environment variables / `.env`.
 
-## 通信フロー
+## Communication flow
 
-1. ブラウザが `embed.js` を読み込み、下部パネルと iframe を生成する。
-2. iframe 読込後、親が `postMessage` で `agentUrl` と `token` を渡す。
-3. iframe が `ws://127.0.0.1:PORT/terminal?token=...&cols=..&rows=..` へ WebSocket 接続する。
-4. Local Agent は upgrade 時に Origin・トークン・セッション上限を検証する。
-5. 検証通過後、PTY 上で Claude Code を起動し、双方向に中継する。
+1. The browser loads `embed.js`, which builds the bottom panel and the iframe.
+2. After the iframe loads, the parent passes `agentUrl` and `token` via `postMessage`.
+3. The iframe opens a WebSocket to `ws://127.0.0.1:PORT/terminal?token=...&cols=..&rows=..`.
+4. On upgrade, the Local Agent validates Origin, token, and the session limit.
+5. Once validated, it launches Claude Code on a PTY and relays both directions.
    - Client → Server: `{type:'input'|'resize'|'ping'}`
    - Server → Client: `{type:'output'|'exit'|'error'|'status'|'pong'}`
-6. WebSocket が閉じると PTY プロセスを終了する。
+6. When the WebSocket closes, the PTY process is terminated.
 
-## 設計判断
+## Design decisions
 
-### なぜ PTY か
+### Why a PTY
 
-Claude Code は対話的なターミナル UI（Thinking 表示・Permission ダイアログ・カラー・カーソル制御）を持つ。通常のパイプではこれらが失われるため、擬似端末（PTY）で起動して本来の UI・操作性を維持する。
+Claude Code has an interactive terminal UI (thinking display, permission dialogs, color, cursor control). An ordinary pipe would lose all of that, so it is launched on a pseudo-terminal (PTY) to preserve its original UI and behavior.
 
-### なぜ WebSocket か
+### Why WebSocket
 
-端末は低遅延の双方向ストリームを要する。HTTP のリクエスト／レスポンスでは逐次出力とキー入力を扱いにくいため、リアルタイム通信は WebSocket に集約する。HTTP はヘルスチェックと状態取得のみに用いる。
+A terminal needs a low-latency, bidirectional stream. HTTP request/response is awkward for streaming output and key input, so all real-time communication is consolidated over WebSocket. HTTP is used only for health checks and status.
 
-### なぜ iframe を既定にするか
+### Why iframe is the default
 
-フレームワーク非依存で、静的ホスティング（GitHub Pages 等）でもそのまま動く。既存アプリの構成を大きく変えずに統合できる。React / Vue が必要な場合は同梱ラッパーを使う。
+It is framework-agnostic and works as-is on static hosting (e.g. GitHub Pages). It integrates with minimal changes to the existing app. When React/Vue is needed, use the bundled wrappers.
 
-## セキュリティ設計
+## Security design
 
-二重の関門で保護する。
+Protected by two gates.
 
-1. **Origin 許可リスト**: ブラウザ由来の CSRF / DNS リバインディングを防ぐ。未指定時は localhost 系のみ許可。
-2. **セッショントークン**: 真の認可。定数時間比較で検証する。
+1. **Origin allowlist**: prevents browser-based CSRF / DNS rebinding. When unspecified, only localhost-family origins are allowed.
+2. **Session token**: the real authorization. Verified with constant-time comparison.
 
-加えて、localhost バインド・作業ディレクトリ限定・同時セッション上限・任意 Shell 実行 API の非提供により攻撃面を最小化する。
+In addition, loopback binding, working-directory scoping, a concurrent-session limit, and the absence of any arbitrary-shell-execution API minimize the attack surface.
 
-## 拡張ポイント
+## Extension points
 
-- `config.js`: 設定項目の追加。
-- `server.js`: 新しい HTTP エンドポイントや WebSocket メッセージ種別の追加。
-- `claude-launcher.js`: 起動コマンド・引数・環境のカスタマイズ。
-- `embed.js`: パネルの配置（右ドック等）やテーマの拡張。
+- `config.js`: add configuration options.
+- `server.js`: add new HTTP endpoints or WebSocket message types.
+- `claude-launcher.js`: customize the launch command, args, and environment.
+- `embed.js`: extend panel placement (e.g. right dock) and theming.

@@ -1,36 +1,36 @@
-# セットアップ手順
+# Setup guide
 
-初回セットアップから接続確認までの手順をまとめる。
+Everything from first-time setup to verifying the connection.
 
-## 1. Claude Code のインストール
+## 1. Install Claude Code
 
-Claude Code CLI がこの PC にインストール済みであることを確認する。
+Confirm that the Claude Code CLI is installed on this machine.
 
 ```bash
 claude --version
 ```
 
-コマンドが見つからない場合は Claude Code を導入する（[claude.com/claude-code](https://claude.com/claude-code)）。
+If the command is not found, install Claude Code ([claude.com/claude-code](https://claude.com/claude-code)).
 
-## 2. Claude Code へのログイン
+## 2. Log in to Claude Code
 
 ```bash
 claude
 ```
 
-初回は認証フローが走る。ログイン済みであることを確認してから終了する。
+The first run triggers an authentication flow. Confirm you are logged in, then exit.
 
-> ヒント: このセッションでシェルコマンドを自分で実行したい場合は、プロンプトに `! claude` のように `!` を付けて入力すると、その場で実行され出力が会話に取り込まれる。
+> Tip: if you want to run a shell command yourself during this session, prefix it with `!` (e.g. `! claude`); it runs on the spot and its output is pulled into the conversation.
 
-## 3. Local Agent の起動
+## 3. Start the Local Agent
 
 ```bash
 cd claude-embed/local-agent
-npm install            # 初回のみ（node-pty のビルドが走る）
+npm install            # first time only (builds node-pty)
 CLAUDE_AGENT_CWD="/path/to/your/project" npm start
 ```
 
-起動すると以下のような出力が表示される。
+On startup you'll see output like this:
 
 ```
 ──────────────────────────────────────────────
@@ -38,24 +38,24 @@ CLAUDE_AGENT_CWD="/path/to/your/project" npm start
 ──────────────────────────────────────────────
  HTTP      : http://127.0.0.1:4820
  WebSocket : ws://127.0.0.1:4820/terminal
- 作業Dir   : /path/to/your/project
- Claude    : 利用可能
- セッショントークン（フロントエンドに設定してください）:
-   3f9a...（省略）
+ Work dir  : /path/to/your/project
+ Claude    : available
+ Session token (set this in the frontend):
+   3f9a...(truncated)
 ──────────────────────────────────────────────
 ```
 
-表示された**セッショントークン**を控える。固定したい場合は `.env` に `CLAUDE_AGENT_TOKEN` を設定する。
+Note the **session token** shown. To fix it, set `CLAUDE_AGENT_TOKEN` in `.env`.
 
-## 4. Web UI の起動
+## 4. Start the Web UI
 
-既存アプリの通常の起動方法に従う（例）。
+Start your existing app the usual way (example):
 
 ```bash
 npm run dev
 ```
 
-`embed.js` を利用する場合は、トークンをフロントエンドへ渡す。開発時は環境変数などで注入するのが簡単。
+If you use `embed.js`, pass the token to the frontend. During development, injecting it via an environment variable is the simplest option.
 
 ```html
 <script src="/claude-embed/embed.js"></script>
@@ -63,25 +63,25 @@ npm run dev
   ClaudeEmbed.init({
     iframeSrc: '/claude-embed/claude-terminal.html',
     agentUrl: 'ws://127.0.0.1:4820',
-    token: window.__CLAUDE_AGENT_TOKEN__, // ビルド時／サーバ側で注入
+    token: window.__CLAUDE_AGENT_TOKEN__, // injected at build time / by the server
   });
 </script>
 ```
 
-## 5. 接続確認
+## 5. Verify the connection
 
-1. Web アプリを開く。
-2. 画面下部に「Claude Code」パネルが表示される。
-3. ヘッダの状態表示が「接続済み」になる。
-4. パネル内で `help` などを入力し、Claude Code が応答することを確認する。
-5. ウィンドウやパネルをリサイズし、端末が追従することを確認する。
-6. Local Agent を再起動し、パネルが自動で再接続することを確認する。
+1. Open the web app.
+2. A "Claude Code" panel appears at the bottom of the screen.
+3. The status in the header shows "connected".
+4. Type something like `help` and confirm Claude Code responds.
+5. Resize the window or the panel and confirm the terminal follows.
+6. Restart the Local Agent and confirm the panel reconnects automatically.
 
-## うまくいかないときは
+## If something goes wrong
 
-- 状態が「未設定」→ `agentUrl` / `token` がフロントに渡っているか確認。
-- `401` → トークンが起動ログの値と一致しているか確認。
-- `403` → `CLAUDE_AGENT_ALLOWED_ORIGINS` に Web UI の Origin を追加。
-- 「Claude Code の起動に失敗」→ 手順 1・2 を再確認。
+- Status stays "unconfigured" → check that `agentUrl` / `token` reach the frontend.
+- `401` → check that the token matches the value in the startup log.
+- `403` → add the Web UI's origin to `CLAUDE_AGENT_ALLOWED_ORIGINS`.
+- "Failed to launch Claude Code" → re-check steps 1 and 2.
 
-詳細は `README.md` のトラブルシューティングを参照。
+See the troubleshooting section in `README.md` for details.

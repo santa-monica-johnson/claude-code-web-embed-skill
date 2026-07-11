@@ -30,13 +30,13 @@
   };
 
   var STATUS_LABEL = {
-    connected: '接続済み',
-    connecting: '接続中…',
-    disconnected: '切断',
-    exited: '終了',
-    error: 'エラー',
-    unconfigured: '未設定',
-    'waiting-config': '設定待ち',
+    connected: 'Connected',
+    connecting: 'Connecting…',
+    disconnected: 'Disconnected',
+    exited: 'Exited',
+    error: 'Error',
+    unconfigured: 'Not configured',
+    'waiting-config': 'Waiting for config',
   };
   var STATUS_COLOR = {
     connected: '#3fb950',
@@ -87,9 +87,9 @@
 
   function ClaudeEmbed(options) {
     this.opts = Object.assign({}, DEFAULTS, options || {});
-    if (!this.opts.iframeSrc) throw new Error('ClaudeEmbed: iframeSrc は必須です');
+    if (!this.opts.iframeSrc) throw new Error('ClaudeEmbed: iframeSrc is required');
     if (!this.opts.token) {
-      console.warn('ClaudeEmbed: token が未設定です。Local Agent の起動ログを確認してください。');
+      console.warn('ClaudeEmbed: token is not set. Check the Local Agent startup log.');
     }
     this.isOpen = this.opts.open;
     this.isFullscreen = false;
@@ -115,13 +115,13 @@
     this.statusEl = el('span', 'claude-embed-status', '—');
 
     var spacer = el('div', 'claude-embed-spacer');
-    var reconnectBtn = el('button', 'claude-embed-btn', '再接続');
+    var reconnectBtn = el('button', 'claude-embed-btn', 'Reconnect');
     var fullscreenBtn = el('button', 'claude-embed-btn', '⛶');
     var toggleBtn = el('button', 'claude-embed-btn', this.isOpen ? '▾' : '▴');
 
-    reconnectBtn.title = '再接続';
-    fullscreenBtn.title = '全画面';
-    toggleBtn.title = '開閉';
+    reconnectBtn.title = 'Reconnect';
+    fullscreenBtn.title = 'Full screen';
+    toggleBtn.title = 'Toggle';
 
     header.appendChild(title);
     header.appendChild(this.statusEl);

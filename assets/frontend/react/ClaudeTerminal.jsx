@@ -14,13 +14,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 const STATUS_LABEL = {
-  connected: '接続済み',
-  connecting: '接続中…',
-  disconnected: '切断',
-  exited: '終了',
-  error: 'エラー',
-  unconfigured: '未設定',
-  'waiting-config': '設定待ち',
+  connected: 'Connected',
+  connecting: 'Connecting…',
+  disconnected: 'Disconnected',
+  exited: 'Exited',
+  error: 'Error',
+  unconfigured: 'Not configured',
+  'waiting-config': 'Waiting for config',
 };
 
 export default function ClaudeTerminal({
@@ -81,7 +81,7 @@ export default function ClaudeTerminal({
           {STATUS_LABEL[status] || status}
         </span>
         <span style={{ flex: 1 }} />
-        <button onClick={reconnect}>再接続</button>
+        <button onClick={reconnect}>Reconnect</button>
       </div>
       <iframe
         ref={iframeRef}

@@ -1,91 +1,91 @@
 # Claude Code Web Embed
 
-このディレクトリには、既存の Web インターフェースへ**ローカルで動作する Claude Code** を統合するための一式が含まれる。Claude Code 自体は変更・再実装せず、この PC にインストール済みの CLI をそのまま利用する。
+This directory contains everything needed to integrate a **locally running Claude Code** into an existing web interface. Claude Code itself is neither modified nor reimplemented — the CLI already installed on this machine is used as-is.
 
-## 概要
+## Overview
 
 ```
-Web UI（xterm.js ターミナル）
+Web UI (xterm.js terminal)
         │ WebSocket
         ▼
-Local Agent（WebSocket + PTY）
+Local Agent (WebSocket + PTY)
         │
         ▼
-Claude Code CLI（既存）
+Claude Code CLI (existing)
 ```
 
-Web UI は Local Agent に WebSocket で接続し、Local Agent が擬似端末（PTY）上で Claude Code を起動する。Claude Code の出力・入力・リサイズはすべて WebSocket を介して中継される。
+The Web UI connects to the Local Agent over WebSocket, and the Local Agent launches Claude Code inside a pseudo-terminal (PTY). Claude Code's output, input, and resize events are all relayed over WebSocket.
 
-## 必要環境
+## Requirements
 
-- Node.js 18 以上
-- ローカルにインストール済みの Claude Code CLI（`claude` コマンド）
-- Claude Code へのログイン済み状態
+- Node.js 18 or later
+- Claude Code CLI installed locally (the `claude` command)
+- A logged-in Claude Code session
 
-## インストール
+## Install
 
 ```bash
 cd claude-embed/local-agent
 npm install
 ```
 
-`node-pty` はネイティブモジュールのため、環境によってはビルドツール（macOS: Xcode Command Line Tools、Linux: build-essential/python3、Windows: windows-build-tools）が必要になる。
+`node-pty` is a native module, so some environments require build tools (macOS: Xcode Command Line Tools; Linux: build-essential/python3; Windows: windows-build-tools).
 
-## 起動
+## Start
 
 ```bash
-# Local Agent を起動（作業ディレクトリを指定可能）
+# Start the Local Agent (you can specify the working directory)
 cd claude-embed/local-agent
 CLAUDE_AGENT_CWD="/path/to/your/project" npm start
 ```
 
-起動ログに表示される**セッショントークン**をフロントエンドに設定する。Web UI 側は既存アプリの起動方法に従う（`setup.md` 参照）。
+Set the **session token** printed in the startup log into the frontend. Start the Web UI the way your existing app normally starts (see `setup.md`).
 
-## 利用方法
+## Usage
 
-1. Local Agent を起動する。
-2. 既存 Web アプリを開く。画面下部に Claude Code ターミナルパネルが表示される。
-3. パネル内でキーボード入力すると、ローカルの Claude Code が応答する。
-4. ヘッダの操作で 開閉 / 再接続 / 全画面 が行える。
+1. Start the Local Agent.
+2. Open your existing web app. A Claude Code terminal panel appears at the bottom of the screen.
+3. Type into the panel; your local Claude Code responds.
+4. Use the header controls to open/close, reconnect, or go full screen.
 
-## 設定
+## Configuration
 
-Local Agent は `.env`（または環境変数）で設定する。`.env.example` を参照。
+Configure the Local Agent via `.env` (or environment variables). See `.env.example`.
 
-| 変数 | 既定 | 説明 |
+| Variable | Default | Description |
 | --- | --- | --- |
-| `CLAUDE_AGENT_HOST` | `127.0.0.1` | 待ち受けホスト（localhost 固定を推奨） |
-| `CLAUDE_AGENT_PORT` | `4820` | 待ち受けポート |
-| `CLAUDE_AGENT_CWD` | エージェントの cwd | Claude Code の作業ディレクトリ |
-| `CLAUDE_AGENT_ALLOWED_ORIGINS` | localhost 系 | 許可 Origin（カンマ区切り） |
-| `CLAUDE_AGENT_TOKEN` | ランダム生成 | セッショントークン |
-| `CLAUDE_AGENT_COMMAND` | `claude` | 起動コマンド |
-| `CLAUDE_AGENT_MAX_SESSIONS` | `4` | 同時セッション上限 |
+| `CLAUDE_AGENT_HOST` | `127.0.0.1` | Listen host (loopback strongly recommended) |
+| `CLAUDE_AGENT_PORT` | `4820` | Listen port |
+| `CLAUDE_AGENT_CWD` | agent's cwd | Claude Code working directory |
+| `CLAUDE_AGENT_ALLOWED_ORIGINS` | localhost only | Allowed origins (comma-separated) |
+| `CLAUDE_AGENT_TOKEN` | randomly generated | Session token |
+| `CLAUDE_AGENT_COMMAND` | `claude` | Launch command |
+| `CLAUDE_AGENT_MAX_SESSIONS` | `4` | Max concurrent sessions |
 
-## セキュリティ
+## Security
 
-- Local Agent は既定で **localhost のみ**待ち受ける。
-- ブラウザ経由の接続は **Origin 許可リスト**で制限する。
-- すべての WebSocket 接続は**セッショントークン**を必須とする。
-- Claude Code は**指定した作業ディレクトリ**で起動する。
-- 任意の Shell を実行する公開 API は提供しない。
+- The Local Agent listens on **loopback only** by default.
+- Browser connections are restricted by an **Origin allowlist**.
+- Every WebSocket connection requires a **session token**.
+- Claude Code launches in the **configured working directory**.
+- No public API for running arbitrary shell commands is exposed.
 
-Claude Code やローカルファイルをクラウドへ送信することはない。GitHub Pages などにフロントエンドを静的ホスティングしても、Claude Code との通信はローカルの Local Agent のみが担当する。
+Claude Code and local files are never sent to the cloud. Even if you host the frontend statically (e.g. on GitHub Pages), all communication with Claude Code is handled solely by the local Local Agent.
 
-## 対応フレームワーク
+## Supported frameworks
 
-iframe 方式のため React / Next.js / Vue / Nuxt / Svelte / Astro / Vite / Vanilla JS のいずれでも利用できる。React / Vue 向けの薄いコンポーネントラッパーも同梱する。
+Because it uses the iframe approach, it works with React / Next.js / Vue / Nuxt / Svelte / Astro / Vite / Vanilla JS. Thin component wrappers for React and Vue are also included.
 
-## トラブルシューティング
+## Troubleshooting
 
-| 症状 | 対処 |
+| Symptom | Fix |
 | --- | --- |
-| 「未設定」のまま接続しない | フロントエンドに `agentUrl` と `token` が渡っているか確認 |
-| `401 Unauthorized` | トークンが起動ログの値と一致しているか確認 |
-| `403 Forbidden` | `CLAUDE_AGENT_ALLOWED_ORIGINS` に Web UI の Origin を追加 |
-| 「Claude Code の起動に失敗」 | `claude` が PATH にあり、ログイン済みか確認 |
-| ポート使用中エラー | `CLAUDE_AGENT_PORT` を変更 |
-| `node-pty` のビルド失敗 | ビルドツールを導入して `npm install` を再実行 |
-| `posix_spawnp failed.`（macOS） | 同梱 `spawn-helper` が実行権を失っている。`chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper`（ビルド版なら `build/Release/spawn-helper`）を付与して再実行 |
+| Stuck on "unconfigured" | Check that `agentUrl` and `token` are passed to the frontend |
+| `401 Unauthorized` | Check that the token matches the value in the startup log |
+| `403 Forbidden` | Add the Web UI's origin to `CLAUDE_AGENT_ALLOWED_ORIGINS` |
+| "Failed to launch Claude Code" | Verify `claude` is on your PATH and logged in |
+| Port-in-use error | Change `CLAUDE_AGENT_PORT` |
+| `node-pty` build failure | Install build tools and re-run `npm install` |
+| `posix_spawnp failed.` (macOS) | The bundled `spawn-helper` lost its execute bit. Restore it with `chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper` (or `build/Release/spawn-helper` for a built version) and re-run |
 
-詳細は `setup.md`、設計は `architecture.md` を参照。
+See `setup.md` for setup details and `architecture.md` for the design.

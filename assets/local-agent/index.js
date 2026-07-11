@@ -23,21 +23,21 @@ httpServer.listen(config.port, config.host, () => {
   console.log(line);
   console.log(` HTTP      : ${base}`);
   console.log(` WebSocket : ws://${config.host}:${config.port}/terminal`);
-  console.log(` 作業Dir   : ${config.workingDir}`);
+  console.log(` Work dir  : ${config.workingDir}`);
   console.log(
     ` Claude    : ${
       isClaudeAvailable(config.claudeCommand)
-        ? '利用可能'
-        : '未検出（要インストール / ログイン）'
+        ? 'available'
+        : 'not found (install / log in required)'
     }`
   );
   if (!isLoopbackHost(config.host)) {
     console.log(
-      ' 警告      : localhost 以外にバインドしています。公開ネットワークで使用しないでください。'
+      ' Warning   : bound to a non-localhost address. Do not use on a public network.'
     );
   }
   console.log('');
-  console.log(' セッショントークン（フロントエンドに設定してください）:');
+  console.log(' Session token (set this in the frontend):');
   console.log(`   ${config.sessionToken}`);
   console.log(line);
 });
@@ -45,10 +45,10 @@ httpServer.listen(config.port, config.host, () => {
 httpServer.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(
-      `ポート ${config.port} は既に使用されています。CLAUDE_AGENT_PORT で変更してください。`
+      `Port ${config.port} is already in use. Change it with CLAUDE_AGENT_PORT.`
     );
   } else {
-    console.error('サーバ起動エラー:', err.message);
+    console.error('Server startup error:', err.message);
   }
   process.exit(1);
 });
@@ -57,7 +57,7 @@ let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log('\nシャットダウンします...');
+  console.log('\nShutting down...');
   // 接続中の WebSocket を切断（各 PTY は close ハンドラで kill される）。
   for (const client of wss.clients) {
     try {

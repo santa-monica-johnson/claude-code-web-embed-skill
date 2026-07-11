@@ -112,7 +112,7 @@
         term.write(msg.data);
       } else if (msg.type === 'exit') {
         term.write(
-          '\r\n\x1b[33m[プロセスが終了しました code=' + msg.exitCode + ']\x1b[0m\r\n'
+          '\r\n\x1b[33m[process exited code=' + msg.exitCode + ']\x1b[0m\r\n'
         );
         setStatus('exited');
       } else if (msg.type === 'error') {
