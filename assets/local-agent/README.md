@@ -14,6 +14,11 @@ Both are verified working. Additional languages (Go, Rust, Ruby, …) can be add
 by following the porting guide in `references/protocol.md`; Go/Rust are the best
 choices when you want a single static binary.
 
+Both also implement **session persistence**: a page reload or brief disconnect
+reattaches to the still-running Claude Code process instead of restarting it
+(see `../docs-templates/README.md`'s "Session persistence" section and
+`references/protocol.md` for the wire-level design).
+
 ## Quick start
 
 ### Node

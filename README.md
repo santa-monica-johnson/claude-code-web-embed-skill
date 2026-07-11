@@ -17,6 +17,17 @@ The frontend and the Local Agent talk over a small, language-neutral protocol
 in any language**. Node.js and Python implementations ship ready-made and are
 verified working; Go/Rust/Ruby/… can be added via the porting guide.
 
+Two things make it feel like a persistent tool rather than a page widget:
+
+- **Session persistence** — reloading the page (or a brief network drop) does not
+  restart Claude Code. The Local Agent keeps the process alive for a grace period
+  and reattaches on reconnect, replaying scrollback so the screen looks the same
+  as before.
+- **Runtime-selectable panel position** — the embedded panel can dock to the
+  bottom, right, or left of the page, or float as a draggable/resizable window;
+  switchable live from a selector in the panel's own header (persisted via
+  `localStorage`), not just at init time.
+
 ## What is this
 
 This repository bundles a single Claude Code skill (`SKILL.md`) together with the **ready-made template assets** it produces. When you invoke the skill, it analyzes the target project, drops the templates into place, and wires them into the existing UI with minimal changes.

@@ -61,6 +61,21 @@ Opening the same page in a second tab takes over that session (the first tab
 is disconnected, not duplicated) — this mirrors how a single `tmux`/`screen`
 session can only be attached from one place at a time.
 
+## Panel controls
+
+The embedded panel's header has:
+
+- **Position selector** — dock the terminal to the **bottom**, **right**, or
+  **left** of the page, or pop it out as a **floating** window you can drag
+  (by the header) and resize (by its edge/corner handle). Switching is
+  instant and has nothing to do with `init()`'s `position` option, which only
+  sets the *initial* placement — the choice made here is remembered across
+  reloads via `localStorage`.
+- **Reconnect** — force a fresh WebSocket connection without reloading the page.
+- **Full screen** (`⛶`) — expand the panel to fill the viewport.
+- **Minimize** (`—`) — collapse the panel to a small launcher button; click it
+  to reopen.
+
 ## Configuration
 
 Configure via `.env` (or environment variables); the variable names are identical across implementations. See `.env.example`.

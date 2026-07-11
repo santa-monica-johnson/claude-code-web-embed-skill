@@ -31,7 +31,7 @@ A design reference for developers. It summarizes the structure, communication fl
 ### Web Interface (frontend/)
 
 - `claude-terminal.html` / `.js` / `.css`: the terminal itself, running inside the iframe. Initializes xterm.js and connects to the Local Agent over WebSocket.
-- `embed.js`: a framework-agnostic script loaded by the existing page. Builds the bottom-docked panel, the control UI, and the iframe, and controls the iframe via `postMessage`.
+- `embed.js`: a framework-agnostic script loaded by the existing page. Builds the panel (dockable bottom/right/left, or a floating window — switchable at runtime from a selector in its own header, persisted via `localStorage`), the control UI, and the iframe, and controls the iframe via `postMessage`.
 - `react/`, `vue/`: thin wrappers for each framework (the actual implementation is the iframe).
 
 ### Local Agent (local-agent/)
@@ -53,7 +53,7 @@ Node splits these into `index.js` / `server.js` / `pty-manager.js` /
 
 ## Communication flow
 
-1. The browser loads `embed.js`, which builds the bottom panel and the iframe.
+1. The browser loads `embed.js`, which builds the panel (in whichever position was last selected, or the `init()` default) and the iframe.
 2. After the iframe loads, the parent passes `agentUrl` and `token` via `postMessage`.
 3. The iframe opens a WebSocket to `ws://127.0.0.1:PORT/terminal?token=...&cols=..&rows=..`.
 4. On upgrade, the Local Agent validates Origin, token, and the session limit.
@@ -102,4 +102,4 @@ In addition, loopback binding, working-directory scoping, a concurrent-session l
 - `config.js`: add configuration options.
 - `server.js`: add new HTTP endpoints or WebSocket message types.
 - `claude-launcher.js`: customize the launch command, args, and environment.
-- `embed.js`: extend panel placement (e.g. right dock) and theming.
+- `embed.js`: add new panel positions or theming (bottom/right/left/floating already supported, runtime-switchable).
