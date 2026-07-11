@@ -110,7 +110,10 @@
       '.claude-embed-launcher.is-hidden{display:none}' +
       '.claude-embed-btn.is-active{background:#1f6feb;border-color:#1f6feb;color:#fff}' +
       '.claude-embed-picking,.claude-embed-picking *{cursor:crosshair!important}' +
-      '.claude-embed-pick-overlay{position:fixed;z-index:2147483001;display:none;pointer-events:none;' +
+      // パネル(2147483000)より低い z-index にする。ハイライト対象の要素が
+      // パネルの背後（floating 配置など）まで及ぶ場合でも、枠線がパネルの
+      // 上に描画されてしまわないようにするため。
+      '.claude-embed-pick-overlay{position:fixed;z-index:2147482999;display:none;pointer-events:none;' +
       'box-sizing:border-box;border:2px solid #58a6ff;background:rgba(88,166,255,.15);border-radius:2px}';
     var style = document.createElement('style');
     style.id = 'claude-embed-styles';
