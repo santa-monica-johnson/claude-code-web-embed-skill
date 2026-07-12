@@ -2,7 +2,7 @@
 
 For quickly deciding Step 1's analysis and Step 3's integration point. **The
 default is always the iframe method.** Use the React/Vue wrappers only when tight
-coupling is clearly needed. The Local Agent language (node/python/…) is chosen
+coupling is clearly needed. The Local Agent language (node/python/go/…) is chosen
 separately and is independent of the frontend framework.
 
 ## Detection
@@ -32,7 +32,7 @@ separately and is independent of the frontend framework.
 - The iframe assets (`claude-terminal.{html,css,js}`) form a unit that **works with plain relative references**. Put them together in one static-serve directory (e.g. `public/claude-embed/`).
 - Put `embed.js` in the same directory and load it once from the host page.
 - Even when using the React/Vue wrapper, the iframe assets are still needed on the static serve path (the implementation is the iframe).
-- The Local Agent is not part of the static bundle. It runs locally on the user's machine. Its language (node/python/…) does not affect the frontend.
+- The Local Agent is not part of the static bundle. It runs locally on the user's machine. Its language (node/python/go/…) does not affect the frontend.
 
 ## Static hosting (GitHub Pages, etc.)
 

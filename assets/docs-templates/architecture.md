@@ -36,12 +36,13 @@ A design reference for developers. It summarizes the structure, communication fl
 
 ### Local Agent (local-agent/)
 
-The agent is **implementation-selectable**: `node/` (Node 22+; macOS/Linux/Windows)
-and `python/` (Python 3.11+ recommended; macOS/Linux/Unix-like only — no Windows,
-since it relies on the stdlib `pty` module) ship ready-made, and any language can
-be added by implementing the language-neutral protocol (see the skill's
-`references/protocol.md`). All implementations behave identically. Every
-implementation provides:
+The agent is **implementation-selectable**: `node/` (Node 22+; macOS/Linux/Windows),
+`python/` (Python 3.11+ recommended; macOS/Linux/Unix-like only — no Windows,
+since it relies on the stdlib `pty` module), and `go/` (Go 1.21+; macOS/Linux/
+Unix-like only, compiles to a single static binary) ship ready-made, and any
+language can be added by implementing the language-neutral protocol (see the
+skill's `references/protocol.md`). All implementations behave identically.
+Every implementation provides:
 
 - **Entry / server**: HTTP (`/health`, `/status`) + WebSocket (`/terminal`); creates a PTY session per connection.
 - **PTY management**: create, I/O, resize, and terminate the PTY.
@@ -51,7 +52,8 @@ implementation provides:
 
 Node splits these into `index.js` / `server.js` / `pty-manager.js` /
 `claude-launcher.js` / `security.js` / `config.js`; Python keeps them in
-`agent.py`. Same contract either way.
+`agent.py`; Go splits them into `main.go` / `server.go` / `ptysession.go` /
+`launcher.go` / `security.go` / `config.go`. Same contract either way.
 
 ## Communication flow
 
@@ -73,9 +75,10 @@ Claude Code has an interactive terminal UI (thinking display, permission dialogs
 A PTY alone isn't enough for correct resize behavior, though: the child process
 also needs the PTY set as its **controlling terminal**, or the `SIGWINCH`
 signal that a `TIOCSWINSZ` resize normally triggers never reaches it, and the
-terminal UI silently keeps rendering at the old size. Node's `node-pty`
-handles this internally. The Python implementation does it explicitly via
-`os.setsid()` + `TIOCSCTTY` in a `preexec_fn` — a plain
+terminal UI silently keeps rendering at the old size. Node's `node-pty` and
+Go's `creack/pty` both handle this internally (`creack/pty`'s `StartWithSize`
+sets `Setsid`/`Setctty` on the child). The Python implementation does it
+explicitly via `os.setsid()` + `TIOCSCTTY` in a `preexec_fn` — a plain
 `subprocess.Popen(..., start_new_session=True)` calls `setsid()` but never
 makes the PTY the controlling terminal, which is why an earlier version of the
 Python agent had panel resizes silently fail to redraw (fixed; see the

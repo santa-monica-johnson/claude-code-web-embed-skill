@@ -10,7 +10,7 @@ Web UI
        └─ Terminal Frontend (xterm.js)
               │ WebSocket (language-neutral JSON protocol)
               ▼
-Local Agent (WebSocket + PTY)   ← choose an implementation: Node or Python
+Local Agent (WebSocket + PTY)   ← choose an implementation: Node, Python, or Go
               │
               ▼
 Claude Code CLI (existing)
@@ -22,6 +22,7 @@ The Web UI connects to the Local Agent over WebSocket, and the Local Agent launc
 
 - **Node implementation**: Node.js 22+. Works on macOS, Linux, and Windows 10 1809+ (via `node-pty`/ConPTY).
 - **Python implementation**: Python 3.11+ recommended (the `websockets` dependency itself only requires 3.10+, but that version reaches end-of-life in October 2026). **macOS/Linux/Unix-like only** — it uses the stdlib `pty` module, which does not exist on Windows. Windows users should use the Node implementation instead.
+- **Go implementation**: Go 1.21+ (developed/verified with 1.26). **macOS/Linux/Unix-like only** — same reasoning as Python (its PTY library sets up the controlling terminal via Unix `setsid`/`TIOCSCTTY`). Compiles to a single static binary; no runtime needed on the machine that runs it beyond the binary itself.
 - Claude Code CLI installed locally (the `claude` command), logged in
 
 ## Install & start
@@ -45,6 +46,14 @@ cd local-agent/python
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 CLAUDE_AGENT_CWD="/path/to/your/project" python3 agent.py
+```
+
+### Go
+
+```bash
+cd local-agent/go
+go build -o claude-local-agent .
+CLAUDE_AGENT_CWD="/path/to/your/project" ./claude-local-agent
 ```
 
 Either way, set the **session token** printed in the startup log into the frontend, and start the Web UI the way your existing app normally starts (see `setup.md`).
@@ -136,7 +145,7 @@ Because it uses the iframe approach, it works with React / Next.js / Vue / Nuxt 
 ## Adding another agent language
 
 The frontend and agent talk over a small language-neutral protocol, so you can add
-a Go/Rust/Ruby/… implementation without touching the frontend. See the protocol
+a Rust/Ruby/… implementation without touching the frontend. See the protocol
 and porting guide bundled with the skill (`references/protocol.md`).
 
 ## Troubleshooting
@@ -150,6 +159,7 @@ and porting guide bundled with the skill (`references/protocol.md`).
 | "Failed to launch Claude Code" | Verify `claude` is on your PATH and logged in |
 | Port-in-use error | Change `CLAUDE_AGENT_PORT` |
 | `node-pty` build failure (Node) | Install build tools and re-run `npm install` |
-| `posix_spawnp failed.` (Node, macOS) | The bundled `spawn-helper` lost its execute bit. Restore it with `chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper` (or `build/Release/spawn-helper` for a built version) and re-run. (Not applicable to the Python implementation.) |
+| `posix_spawnp failed.` (Node, macOS) | The bundled `spawn-helper` lost its execute bit. Restore it with `chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper` (or `build/Release/spawn-helper` for a built version) and re-run. (Not applicable to the Python or Go implementations.) |
+| `.env` not picked up (Go) | The agent looks for `.env` next to the running binary, plus the current working directory as a fallback. With `go run .` the binary lives in a temp build dir, so either `cd` into `local-agent/go` before running, or build a real binary with `go build` first. |
 
 See `setup.md` for setup details and `architecture.md` for the design.

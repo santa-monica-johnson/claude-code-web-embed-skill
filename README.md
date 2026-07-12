@@ -16,10 +16,12 @@ Claude Code CLI (existing, as-is)
 
 The frontend and the Local Agent talk over a small, language-neutral protocol
 ([`references/protocol.md`](references/protocol.md)), so **the agent can be written
-in any language**. Ready-made Node.js and Python implementations are included;
-Go/Rust/Ruby/… can be added via the porting guide. Both have been manually
-exercised end-to-end (health check, auth rejection, PTY round-trip, session
-reattachment) on macOS during development — see
+in any language**. Ready-made Node.js, Python, and Go implementations are included;
+Rust/Ruby/… can be added via the porting guide. All three have been manually
+exercised end-to-end (health check, auth rejection, PTY round-trip including
+multibyte UTF-8, resize, session reattachment, grace-period expiry,
+concurrent-session takeover, process-group kill, agent shutdown) on macOS
+during development — see
 [`references/protocol.md`](references/protocol.md#manual-verification-checklist)
 for the checklist; there is no CI yet.
 
@@ -83,8 +85,8 @@ The skill runs through Steps 1–3 and places/integrates `assets/` into the targ
 
 After placement, see `assets/docs-templates/` (README / setup / architecture), which is copied into the target project. In short:
 
-- Requires a logged-in `claude` CLI, plus the runtime for your chosen agent: **Node.js 22+** or **Python 3.11+** (the `websockets` dependency itself only requires 3.10+, but 3.10 reaches end-of-life in October 2026 — 3.11+ gives more runway). Windows users should pick the Node implementation; the Python agent uses the Unix-only stdlib `pty` module.
-- Node: in `local-agent/node/`, run `npm install && npm start`. Python: in `local-agent/python/`, `pip install -r requirements.txt && python3 agent.py`. Copy the session token from the startup log into the frontend.
+- Requires a logged-in `claude` CLI, plus the runtime for your chosen agent: **Node.js 22+**, **Python 3.11+** (the `websockets` dependency itself only requires 3.10+, but 3.10 reaches end-of-life in October 2026 — 3.11+ gives more runway), or **Go 1.21+**. Windows users should pick the Node implementation; the Python and Go agents rely on Unix-only mechanisms (stdlib `pty`, and `creack/pty`'s `setsid`/`TIOCSCTTY`, respectively).
+- Node: in `local-agent/node/`, run `npm install && npm start`. Python: in `local-agent/python/`, `pip install -r requirements.txt && python3 agent.py`. Go: in `local-agent/go/`, `go build -o claude-local-agent . && ./claude-local-agent`. Copy the session token from the startup log into the frontend.
 - The iframe approach is the default. Works with React / Next / Vue / Nuxt / Svelte / Astro / Vite / Vanilla. Statically hosted frontends (e.g. GitHub Pages) are supported too, subject to the browser permitting the page to reach the visitor's own `localhost` Local Agent (see "Security" below).
 
 ## Security
@@ -108,5 +110,5 @@ the matching token.
 
 - **Frontend**: React / Next.js / Vue / Nuxt / Svelte / Astro / Vite / Vanilla JS.
 - **Backend**: Any (only the frontend and the Local Agent are integrated).
-- **Local Agent OS support**: Node implementation — macOS, Linux, Windows 10 1809+ (via `node-pty`/ConPTY). Python implementation — macOS, Linux, and other Unix-like systems only (uses the stdlib `pty` module, which doesn't exist on Windows).
+- **Local Agent OS support**: Node implementation — macOS, Linux, Windows 10 1809+ (via `node-pty`/ConPTY). Python and Go implementations — macOS, Linux, and other Unix-like systems only (Python uses the stdlib `pty` module; Go's `creack/pty` sets up the controlling terminal via Unix `setsid`/`TIOCSCTTY`; neither exists on Windows).
 - **Hosting**: The frontend can be statically hosted (e.g. GitHub Pages) as long as the visitor's browser is willing to let that page connect to their local Local Agent. Depending on the browser, this may involve a same-origin/Origin-allowlist check (mandatory, see `references/security.md`) and, on browsers that implement Local Network Access / Private Network Access restrictions, an explicit permission prompt for a public page reaching into `localhost`. Local development (frontend and agent both on `localhost`) is unaffected by any of this.

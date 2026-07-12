@@ -3,7 +3,7 @@
 The frontend (xterm.js, running in the browser) and the Local Agent talk over a
 small, language-neutral protocol. **The Local Agent can be implemented in any
 language** as long as it honors this contract — the frontend never changes.
-Node.js and Python reference implementations ship under `assets/local-agent/`.
+Node.js, Python, and Go reference implementations ship under `assets/local-agent/`.
 
 ```
 Frontend (browser, JS/xterm.js)  ──── this protocol ────  Local Agent (any language)
@@ -149,15 +149,21 @@ All implementations read the same variables (and an optional `.env`):
 
 ## Porting guide — add a new language
 
-To add an implementation (e.g. Go, Rust, Ruby), implement the four capabilities
-below and the contract above. Put it under `assets/local-agent/<lang>/`.
+Node, Python, and Go ship as ready-made reference implementations. To add
+another (e.g. Rust, Ruby), implement the four capabilities below and the
+contract above. Put it under `assets/local-agent/<lang>/`.
 
-| Capability | Node (ref) | Python (ref) | Go | Rust | Ruby |
+| Capability | Node (ref) | Python (ref) | Go (ref) | Rust | Ruby |
 | --- | --- | --- | --- | --- | --- |
 | PTY | `node-pty` | stdlib `pty` | `creack/pty` | `portable-pty` (wezterm) | stdlib `PTY` |
-| WebSocket | `ws` | `websockets` | `gorilla/websocket` or `coder/websocket` | `tokio-tungstenite` | `faye-websocket` / `async-websocket` |
+| WebSocket | `ws` | `websockets` | `gorilla/websocket` | `tokio-tungstenite` | `faye-websocket` / `async-websocket` |
 | HTTP health | stdlib `http` | `websockets` `process_request` | stdlib `net/http` | `hyper`/`axum` | stdlib `webrick` / rack |
-| Process mgmt | `child_process` | `subprocess` + `os.killpg` | `os/exec` | `std::process` | `Process` |
+| Process mgmt | `child_process` | `subprocess` + `os.killpg` | `os/exec` + `syscall.Kill` on the process group | `std::process` | `Process` |
+
+The Go implementation's PTY library (`creack/pty`) sets up the controlling
+terminal itself (`Setsid`/`Setctty` in its `SysProcAttr`), the same way
+node-pty does — so, like Node and unlike Python, it needed no extra manual
+workaround for `SIGWINCH` delivery on resize.
 
 Checklist for a new implementation:
 
@@ -203,11 +209,24 @@ rather than a real Claude Code session:
       still open — the first receives `status: replaced` and closes; the second
       keeps working correctly even after the (would-be) grace period has passed
       (this specific check catches a real race found during development — see
-      `server.js`'s `cleanup()` comment and `agent.py`'s `PtySession.attach()`
-      comment for what can go wrong here in each language).
+      `server.js`'s `cleanup()` comment, `agent.py`'s `PtySession.attach()`
+      comment, and `server.go`'s `cleanupConn()` comment for what can go wrong
+      here in each language).
 - [ ] Agent shutdown (SIGINT/SIGTERM) terminates all live PTYs immediately,
       including ones mid-grace-period.
 
 Record what you actually ran (OS, language, command used in place of `claude`)
 wherever "verified working" is claimed in documentation — don't claim coverage
 of an OS or language combination you haven't actually run.
+
+**Go implementation, manually verified on macOS** (Go 1.26, `creack/pty`
+v1.1.24, `gorilla/websocket` v1.5.3): all items above, using `bash` (non-login,
+non-interactive: `--noprofile --norc`, no `-i`) and the real `claude` CLI as
+the launched command. One pitfall found during this verification: an
+*interactive* `bash -i` installs its own `SIGTERM` handling and does not
+reliably exit on `SIGTERM` the way a plain script-mode shell or `claude`
+(a Node.js process) does — if you substitute a shell for `claude` in these
+checks, don't use `-i`, or the process-group-kill checks will look like they
+hang/fail when the launcher logic is actually fine. Not yet tested on Linux or
+Windows (Windows is out of scope for this implementation regardless — see the
+OS-support note in `assets/local-agent/README.md`).
