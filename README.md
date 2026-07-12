@@ -113,3 +113,7 @@ the matching token.
 - **Backend**: Any (only the frontend and the Local Agent are integrated).
 - **Local Agent OS support**: Node implementation — macOS, Linux, Windows 10 1809+ (via `node-pty`/ConPTY). Python and Go implementations — macOS, Linux, and other Unix-like systems only (Python uses the stdlib `pty` module; Go's `creack/pty` sets up the controlling terminal via Unix `setsid`/`TIOCSCTTY`; neither exists on Windows).
 - **Hosting**: The frontend can be statically hosted (e.g. GitHub Pages) as long as the visitor's browser is willing to let that page connect to their local Local Agent. Depending on the browser, this may involve a same-origin/Origin-allowlist check (mandatory, see `references/security.md`) and, on browsers that implement Local Network Access / Private Network Access restrictions, an explicit permission prompt for a public page reaching into `localhost`. Local development (frontend and agent both on `localhost`) is unaffected by any of this.
+
+## License
+
+[MIT](LICENSE)
