@@ -1,6 +1,6 @@
 ---
 name: claude-code-web-embed
-description: Integrate a locally running Claude Code into an existing web interface. The Claude Code CLI is not reimplemented — the copy installed on the user's machine is bridged to a terminal frontend (xterm.js, inside an iframe or framework wrapper) in the web UI through a Local Agent (WebSocket + PTY). Use when the user wants to "embed a Claude Code terminal in a web app", "integrate Claude Code into a site", "run Claude Code from the browser", or "generate a Local Agent and embedded terminal". The Local Agent language is selectable up front (Node.js 22+ or Python 3.11+ ship ready-made; any language can be added via the protocol). Works with React/Next/Vue/Nuxt/Svelte/Astro/Vite/Vanilla, and can be deployed on static hosting (e.g. GitHub Pages) subject to the visitor's browser and their own local Local Agent. The iframe approach is the default.
+description: Integrate a locally running Claude Code into an existing web interface. The Claude Code CLI is not reimplemented — the copy installed on the user's machine is bridged to a terminal frontend (xterm.js, inside an iframe or framework wrapper) in the web UI through a Local Agent (WebSocket + PTY). Use when the user wants to "embed a Claude Code terminal in a web app", "integrate Claude Code into a site", "run Claude Code from the browser", or "generate a Local Agent and embedded terminal". The Local Agent language is selectable up front (Node.js 22+, Python 3.11+, or Go 1.21+ ship ready-made; any language can be added via the protocol). Works with React/Next/Vue/Nuxt/Svelte/Astro/Vite/Vanilla, and can be deployed on static hosting (e.g. GitHub Pages) subject to the visitor's browser and their own local Local Agent. The iframe approach is the default.
 ---
 
 # claude-code-web-embed (embed Claude Code into an existing web app)
@@ -21,7 +21,7 @@ Claude Code CLI (existing, as-is)
 
 ## What this skill produces
 
-- **Local Agent** (`assets/local-agent/`): pick one implementation — **`node/`** (Node 22+; also the only option on Windows) or **`python/`** (Python 3.11+; Unix/macOS/Linux only — its stdlib `pty` module doesn't exist on Windows). Both speak the same protocol (`references/protocol.md`). Any other language (Go, Rust, …) can be added via the porting guide.
+- **Local Agent** (`assets/local-agent/`): pick one implementation — **`node/`** (Node 22+; also the only option on Windows), **`python/`** (Python 3.11+; Unix/macOS/Linux only — its stdlib `pty` module doesn't exist on Windows), or **`go/`** (Go 1.21+; Unix/macOS/Linux only, compiles to a single static binary). All speak the same protocol (`references/protocol.md`). Any other language (Rust, Ruby, …) can be added via the porting guide.
 - **Frontend** (`assets/frontend/`): xterm.js terminal (iframe), embed script, connection-status UI, plus React/Vue wrappers. Shared across all agent languages.
 - **Docs** (`assets/docs-templates/`): README / architecture / setup for the target project.
 
@@ -35,7 +35,7 @@ Always confirm the target project root first (where the integration goes). If un
 
 Inspect `package.json`, framework, package manager, layout, and whether it is statically hosted. Decide, and state in one line:
 - **Embedding method** — iframe (default, framework-agnostic) vs React/Vue wrapper.
-- **Local Agent language** — `node` or `python` (or a new language via `references/protocol.md`). This is a first-class, up-front choice.
+- **Local Agent language** — `node`, `python`, or `go` (or a new language via `references/protocol.md`). This is a first-class, up-front choice.
 - **Placement** and **port/origin**.
 
 ### Step 2 — Generate & place  `steps/step2-scaffold.md`
@@ -56,7 +56,7 @@ Wire the embed into the existing UI in one place (for the iframe default: load `
 ## Principles
 
 - **Do not reimplement Claude Code.** Just launch the existing CLI on a PTY. Thinking / Tool Use / Slash Commands / Permission dialogs / Bash / Git / MCP all work unchanged.
-- **The agent language is a choice, not a given.** Node and Python are ready; the protocol makes any language a drop-in. Keep the frontend identical across languages.
+- **The agent language is a choice, not a given.** Node, Python, and Go are ready; the protocol makes any language a drop-in. Keep the frontend identical across languages.
 - **Do not disrupt the existing app.** Integrate with minimal change via the iframe approach.
 - **Security is mandatory.** Loopback-only bind, Origin allowlist, session token, working-directory scope. No public arbitrary-shell API (`references/security.md`).
 - **No cloud relay of our own.** The web UI ↔ Local Agent bridge stays on the user's machine; this skill doesn't proxy terminal traffic, repo contents, or credentials through any cloud service it operates. Claude Code itself still talks to whatever model provider it's configured to use (normally Anthropic) as part of its ordinary operation — that's expected and outside this skill's scope, not something to hide or contradict in generated docs.

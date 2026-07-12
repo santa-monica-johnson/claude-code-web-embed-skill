@@ -43,7 +43,7 @@ Inject the token into the frontend without putting it in the URL.
 
 Copy `assets/docs-templates/` (`README.md`, `architecture.md`, `setup.md`) into
 the integration target (e.g. under `claude-embed/`). Adjust the port/paths and,
-if relevant, note which agent implementation (node/python) was chosen.
+if relevant, note which agent implementation (node/python/go) was chosen.
 
 ## Verify (completion criteria)
 

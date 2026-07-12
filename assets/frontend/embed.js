@@ -7,7 +7,7 @@
  * ヘッダーには 配置切替 / 要素選択 / 再接続 / 全画面 / 最小化 / 接続状態 の UI を持つ。
  * 端末そのものの入出力は iframe（xterm.js）側が担当し、本スクリプトはパネルの枠と制御のみを担う。
  *
- * 要素選択（⌖ボタン）: クリックするとページ上の任意の要素をハイライト付きで選べる
+ * 要素選択（カーソルアイコンのボタン）: クリックするとページ上の任意の要素をハイライト付きで選べる
  * モードに入る。選んだ要素の CSS セレクタ・タグ・テキスト・HTML 抜粋を、iframe へ
  * postMessage（claude-embed-insert-text）で送り、claude-terminal.js 側が bracketed
  * paste としてターミナルの入力行に挿入する（自動送信はしない）。
@@ -92,8 +92,10 @@
       '.claude-embed-select{background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;' +
       'font-size:12px;padding:2px 4px;cursor:pointer;flex:0 0 auto}' +
       '.claude-embed-btn{background:transparent;border:1px solid transparent;color:#c9d1d9;' +
-      'border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;line-height:1.6;flex:0 0 auto}' +
+      'border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;line-height:1.6;flex:0 0 auto;' +
+      'display:inline-flex;align-items:center;justify-content:center}' +
       '.claude-embed-btn:hover{background:#21262d;border-color:#30363d}' +
+      '.claude-embed-btn svg{display:block;pointer-events:none}' +
       '.claude-embed-body{flex:1 1 auto;min-height:0;position:relative}' +
       '.claude-embed-iframe{border:0;width:100%;height:100%;display:block;background:#1e1e1e}' +
       '.claude-embed-grip{position:absolute;z-index:2}' +
@@ -213,7 +215,11 @@
       select.appendChild(opt);
     });
 
-    var pickBtn = el('button', 'claude-embed-btn', '⌖');
+    var pickBtn = el('button', 'claude-embed-btn');
+    pickBtn.innerHTML =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>';
     var reconnectBtn = el('button', 'claude-embed-btn', 'Reconnect');
     var fullscreenBtn = el('button', 'claude-embed-btn', '⛶');
     var minimizeBtn = el('button', 'claude-embed-btn', '—');

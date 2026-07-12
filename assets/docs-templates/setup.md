@@ -41,6 +41,13 @@ pip install -r requirements.txt   # first time only
 CLAUDE_AGENT_CWD="/path/to/your/project" python3 agent.py
 ```
 
+**Go:**
+```bash
+cd claude-embed/local-agent/go
+go build -o claude-local-agent .   # first time only
+CLAUDE_AGENT_CWD="/path/to/your/project" ./claude-local-agent
+```
+
 On startup you'll see output like this:
 
 ```
