@@ -12,7 +12,8 @@ Copy the frontend assets and the **chosen** agent implementation (from Step 1).
 <project>/
 ├── local-agent/                    ← copy the CHOSEN implementation
 │   ├── node/     …  assets/local-agent/node/     (if language = node)
-│   └── python/   …  assets/local-agent/python/   (if language = python)
+│   ├── python/   …  assets/local-agent/python/   (if language = python)
+│   └── go/       …  assets/local-agent/go/       (if language = go)
 └── public/claude-embed/            ← copy the iframe assets from assets/frontend/
     ├── claude-terminal.html
     ├── claude-terminal.css
@@ -55,6 +56,13 @@ cd <project>/local-agent/python
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+**Go:**
+```bash
+cd <project>/local-agent/go
+go build -o claude-local-agent .
+```
+Compiles to a single static binary — no runtime needed on the machine that runs it beyond the binary itself.
 
 ## Static hosting (e.g. GitHub Pages)
 
