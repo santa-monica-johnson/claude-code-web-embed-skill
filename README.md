@@ -56,7 +56,8 @@ This repository bundles a single Claude Code skill (`SKILL.md`) together with th
 └── assets/                      # Templates placed as-is
     ├── local-agent/             #   Local Agent — pick one implementation
     │   ├── node/                #     Node.js (ws + node-pty)
-    │   └── python/              #     Python (stdlib pty + websockets)
+    │   ├── python/              #     Python (stdlib pty + websockets)
+    │   └── go/                  #     Go (creack/pty + gorilla/websocket)
     ├── frontend/                #   xterm.js terminal + embed.js + React/Vue wrappers
     └── docs-templates/          #   README / architecture / setup for the target project
 ```
